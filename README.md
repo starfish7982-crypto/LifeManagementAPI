@@ -10,7 +10,7 @@ a typed Python service with a relational schema, an authenticated HTTP API, and 
 
 [![CI](https://github.com/starfish7982-crypto/LifeManagementAPI/actions/workflows/ci.yml/badge.svg)](https://github.com/starfish7982-crypto/LifeManagementAPI/actions/workflows/ci.yml)
 
-**Live API docs:** `https://YOUR-APP.fly.dev/docs`
+**Live API docs:** `https://YOUR-APP.onrender.com/docs`
 
 ---
 
@@ -92,6 +92,27 @@ Copy `.env.example` to `.env` and edit. **Set a real `API_KEY` before deploying 
 | `GOOGLE_CALENDAR_ICAL_URL` | no | Secret .ics URL; blank disables calendar |
 | `CALENDAR_CACHE_TTL_SECONDS` | no | Default 900 |
 
+### Deployment
+
+`render.yaml` describes the service as a Render Blueprint: create it from the Render
+dashboard via **New +** → **Blueprint**, pointed at this repository. The image is the
+same `Dockerfile` used locally.
+
+Two properties of free-tier container hosting drive the configuration:
+
+- **The filesystem is ephemeral.** A SQLite file inside the container is erased on every
+  restart and redeploy, so a deployed instance needs `DATABASE_URL` pointing at managed
+  Postgres. Neon and Supabase both have free tiers that do not expire. Paste their
+  connection string in verbatim — `app/database.py` rewrites `postgres://` and
+  `postgresql://` to the psycopg 3 driver this project installs.
+- **The instance sleeps when idle.** After ~15 minutes without traffic the first request
+  back pays a 30-50 second cold start. The engine is configured with `pool_pre_ping` so
+  that request does not fail on a connection the database closed while the app slept.
+
+`create_all()` builds the schema on first boot, so no migration step is needed for the
+initial deploy — with the caveat noted under trade-offs that it cannot alter an existing
+table later.
+
 ---
 
 ## API
@@ -168,8 +189,10 @@ first differing byte and leaks the key prefix through response timing.
 
 Honest about what this is not:
 
-- **SQLite, single writer.** Fine for one user. Concurrent writes would need Postgres —
-  the SQLAlchemy layer is portable, only `DATABASE_URL` changes.
+- **SQLite locally, single writer.** Fine for one user. Concurrent writes need Postgres,
+  which is what a deployed instance runs; the SQLAlchemy layer is portable, only
+  `DATABASE_URL` changes. The test suite still runs on SQLite, so the Postgres path is
+  exercised by deployment rather than by CI.
 - **`create_all()` instead of migrations.** It cannot alter an existing table. Alembic
   is the correct next step and is the first thing I would add for a second user.
 - **One shared API key, no per-user auth.** Multi-user needs real identity; the schema
@@ -250,6 +273,23 @@ ruff check app tests        # 靜態檢查
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | 否 | 留空即停用推播 |
 | `GOOGLE_CALENDAR_ICAL_URL` | 否 | 日曆的秘密 .ics 網址；留空即停用 |
 | `CALENDAR_CACHE_TTL_SECONDS` | 否 | 預設 900 秒 |
+
+### 部署
+
+`render.yaml` 是 Render Blueprint 設定檔：在 Render 後台選 **New +** → **Blueprint**，
+指向這個 repo 即可建立服務，用的是跟本機一樣的 `Dockerfile`。
+
+免費方案的兩個特性決定了上面的設定：
+
+- **檔案系統是暫時的。** 容器裡的 SQLite 檔在每次重啟與重新部署後都會消失，所以部署版本的
+  `DATABASE_URL` 必須指向託管的 Postgres。Neon 和 Supabase 的免費額度都不會過期。連線字串
+  直接貼上即可 —— `app/database.py` 會把 `postgres://` 與 `postgresql://` 改寫成本專案安裝的
+  psycopg 3 驅動。
+- **閒置時會休眠。** 約 15 分鐘沒有流量後，下一個請求要等 30-50 秒冷啟動。資料庫引擎設了
+  `pool_pre_ping`，確保那個請求不會因為休眠期間被資料庫關掉的連線而失敗。
+
+第一次啟動時 `create_all()` 會建好資料表，所以初次部署不需要額外的 migration 步驟——但如同
+「取捨與限制」提到的，它之後無法變更既有資料表。
 
 ### 設計決策
 

@@ -20,10 +20,17 @@ RUN useradd --create-home --uid 1000 appuser \
     && chown -R appuser:appuser /srv
 USER appuser
 
+# Fallback only. Any real deployment sets DATABASE_URL to a managed Postgres URL —
+# a container filesystem is ephemeral, so SQLite here survives only until the next restart.
 ENV DATABASE_URL=sqlite:////srv/data/life.db
+
+# Hosts like Render inject the port to bind on via $PORT. Defaulting keeps `docker run`
+# working locally without extra flags.
+ENV PORT=8000
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-    CMD python -c "import httpx,sys; sys.exit(0 if httpx.get('http://127.0.0.1:8000/health').status_code==200 else 1)"
+    CMD python -c "import httpx,os,sys; sys.exit(0 if httpx.get(f\"http://127.0.0.1:{os.environ.get('PORT','8000')}/health\").status_code==200 else 1)"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so $PORT expands at container start rather than being passed literally.
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}

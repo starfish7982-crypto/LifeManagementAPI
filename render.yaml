@@ -1,0 +1,36 @@
+# Render Blueprint. Create the service from this file with "New +" > "Blueprint" in the
+# Render dashboard, pointed at this repository.
+#
+# Free plan caveats, both of which shape the config below:
+#   1. The instance sleeps after ~15 minutes without traffic; the next request pays a
+#      cold start of roughly 30-50 seconds.
+#   2. The filesystem is ephemeral. Anything written to disk is lost on restart, which
+#      is why DATABASE_URL must point at a managed Postgres rather than a SQLite file.
+services:
+  - type: web
+    name: life-management-api
+    runtime: docker
+    plan: free
+    # Matches the Neon project's region (AWS us-east-2). Keeping the app and the
+    # database in the same region avoids a cross-region round trip on every query.
+    # Render cannot change this after the service is created.
+    region: ohio
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Render generates a long random value once and keeps it across deploys.
+      - key: API_KEY
+        generateValue: true
+
+      # Set in the Render dashboard: paste the connection string from Neon or Supabase.
+      # Marked sync:false so the Blueprint prompts for it instead of storing a secret here.
+      - key: DATABASE_URL
+        sync: false
+
+      # Optional integrations. Leave blank to keep them disabled.
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: GOOGLE_CALENDAR_ICAL_URL
+        sync: false
