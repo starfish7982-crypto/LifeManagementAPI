@@ -1,0 +1,27 @@
+# Fly.io deployment. `fly launch --no-deploy` then `fly deploy`.
+# A persistent volume is required because SQLite writes to disk.
+app = "life-management-api"
+primary_region = "ewr"
+
+[build]
+
+[env]
+  DATABASE_URL = "sqlite:////data/life.db"
+
+[[mounts]]
+  source = "life_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
