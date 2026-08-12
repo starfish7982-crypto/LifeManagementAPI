@@ -47,5 +47,5 @@ app.include_router(today.router)
 
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, str]:
-    """Unauthenticated liveness probe, used by Docker and Fly.io health checks."""
+    """Unauthenticated liveness probe, used by the Docker and Render health checks."""
     return {"status": "ok"}

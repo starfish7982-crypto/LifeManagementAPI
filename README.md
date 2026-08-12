@@ -10,7 +10,10 @@ a typed Python service with a relational schema, an authenticated HTTP API, and 
 
 [![CI](https://github.com/starfish7982-crypto/LifeManagementAPI/actions/workflows/ci.yml/badge.svg)](https://github.com/starfish7982-crypto/LifeManagementAPI/actions/workflows/ci.yml)
 
-**Live API docs:** `https://YOUR-APP.onrender.com/docs`
+**Live API docs:** <https://life-management-api-jkje.onrender.com/docs>
+
+Hosted on Render's free tier, which idles the instance after ~15 minutes without
+traffic — the first request may take 30-50 seconds while it wakes up.
 
 ---
 
@@ -26,7 +29,8 @@ a typed Python service with a relational schema, an authenticated HTTP API, and 
 
 ## Stack
 
-Python 3.10+ · FastAPI · SQLAlchemy 2.0 · SQLite · Pydantic v2 · pytest · Docker · GitHub Actions
+Python 3.10+ · FastAPI · SQLAlchemy 2.0 · Postgres / SQLite · Pydantic v2 · pytest ·
+Docker · Render · GitHub Actions
 
 ---
 
@@ -43,8 +47,9 @@ Python 3.10+ · FastAPI · SQLAlchemy 2.0 · SQLite · Pydantic v2 · pytest · 
                     └───────┬───────────┬──────────┘
                             │           │
                      ┌──────▼─────┐  ┌──▼──────────────────┐
-                     │  SQLite    │  │ Google Calendar iCal│
-                     │            │  │ Telegram Bot API    │
+                     │  Postgres  │  │ Google Calendar iCal│
+                     │  (SQLite   │  │ Telegram Bot API    │
+                     │   locally) │  │                     │
                      └────────────┘  └─────────────────────┘
 ```
 
@@ -52,6 +57,9 @@ Four layers, each with one job. Routers do HTTP; schemas define the contract; se
 hold logic and outbound I/O; models describe storage. The payoff is testability —
 `services/recurrence.py` is a pure function, so every calendar edge case is tested with
 no database and no HTTP.
+
+Nothing above the `models.py` line knows which database is underneath. That is what let
+the deployment move from SQLite to Postgres by changing one environment variable.
 
 ---
 
@@ -87,7 +95,7 @@ Copy `.env.example` to `.env` and edit. **Set a real `API_KEY` before deploying 
 | Variable | Required | Purpose |
 |---|---|---|
 | `API_KEY` | for deployment | Shared secret for the `X-API-Key` header |
-| `DATABASE_URL` | no | Defaults to `sqlite:///./life.db` |
+| `DATABASE_URL` | no | Defaults to `sqlite:///./life.db`; set to a Postgres URL when deployed |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | no | Blank disables push notifications |
 | `GOOGLE_CALENDAR_ICAL_URL` | no | Secret .ics URL; blank disables calendar |
 | `CALENDAR_CACHE_TTL_SECONDS` | no | Default 900 |
@@ -112,6 +120,9 @@ Two properties of free-tier container hosting drive the configuration:
 `create_all()` builds the schema on first boot, so no migration step is needed for the
 initial deploy — with the caveat noted under trade-offs that it cannot alter an existing
 table later.
+
+`API_KEY` is declared with `generateValue: true`, so Render mints a random secret on
+first apply and reuses it across deploys. No key is ever committed to this repository.
 
 ---
 
@@ -201,11 +212,14 @@ Honest about what this is not:
   be the fix.
 - **iCal instead of the Google Calendar API.** No OAuth flow, no token storage, no
   Cloud project. The cost is read-only access to one calendar.
+- **The free tier cold-starts.** The first request after idling waits 30-50 seconds.
+  That is a hosting-plan limit rather than a defect in the code, but the distinction is
+  invisible to a real user; a paid plan or a keep-alive ping fixes it.
 
 ## Roadmap
 
 - [ ] Alembic migrations
-- [ ] Postgres support in CI (matrix build)
+- [ ] Postgres in CI (matrix build), so the deployed database is covered by tests
 - [ ] Recurring todos generated from reminders
 - [ ] Web UI consuming this API
 
@@ -225,6 +239,10 @@ MIT
 這個專案原本是我自己電腦上跑的 PowerShell + JSON 檔應用程式。這是重寫版本：具型別的
 Python 服務，關聯式資料表、需驗證的 HTTP API，以及測試。
 
+**線上 API 文件：**<https://life-management-api-jkje.onrender.com/docs>
+
+部署在 Render 免費方案，約 15 分鐘無流量會休眠，第一個請求可能要等 30-50 秒喚醒。
+
 ### 功能
 
 | 區塊 | 說明 |
@@ -237,7 +255,8 @@ Python 服務，關聯式資料表、需驗證的 HTTP API，以及測試。
 
 ### 技術
 
-Python 3.10+ · FastAPI · SQLAlchemy 2.0 · SQLite · Pydantic v2 · pytest · Docker · GitHub Actions
+Python 3.10+ · FastAPI · SQLAlchemy 2.0 · Postgres / SQLite · Pydantic v2 · pytest ·
+Docker · Render · GitHub Actions
 
 ### 怎麼跑起來
 
@@ -260,6 +279,7 @@ uvicorn app.main:app --reload
 pytest                      # 57 個測試
 pytest --cov=app            # 94% 覆蓋率
 ruff check app tests        # 靜態檢查
+docker build -t life-management-api . && docker run -p 8000:8000 life-management-api
 ```
 
 ### 設定
@@ -269,7 +289,7 @@ ruff check app tests        # 靜態檢查
 | 變數 | 必要 | 用途 |
 |---|---|---|
 | `API_KEY` | 部署時必要 | `X-API-Key` 標頭用的共享金鑰 |
-| `DATABASE_URL` | 否 | 預設 `sqlite:///./life.db` |
+| `DATABASE_URL` | 否 | 預設 `sqlite:///./life.db`；部署時改指向 Postgres |
 | `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | 否 | 留空即停用推播 |
 | `GOOGLE_CALENDAR_ICAL_URL` | 否 | 日曆的秘密 .ics 網址；留空即停用 |
 | `CALENDAR_CACHE_TTL_SECONDS` | 否 | 預設 900 秒 |
@@ -290,6 +310,9 @@ ruff check app tests        # 靜態檢查
 
 第一次啟動時 `create_all()` 會建好資料表，所以初次部署不需要額外的 migration 步驟——但如同
 「取捨與限制」提到的，它之後無法變更既有資料表。
+
+`API_KEY` 在 `render.yaml` 裡宣告成 `generateValue: true`，Render 會在第一次套用時產生
+一組亂數並在後續部署沿用。這個 repo 裡從來不會出現任何金鑰。
 
 ### 設計決策
 
@@ -330,14 +353,25 @@ ruff check app tests        # 靜態檢查
 
 誠實說明這個專案不是什麼：
 
-- **SQLite，單一寫入者。** 個人使用沒問題。要並行寫入就得換 Postgres——SQLAlchemy 那層
-  是可移植的，只需要改 `DATABASE_URL`。
-- **用 `create_all()` 而非 migration。** 它無法變更既有資料表。Alembic 是正確的下一步。
+- **本機用 SQLite，單一寫入者。** 個人使用沒問題。要並行寫入就得換 Postgres，也就是部署
+  版本實際在跑的——SQLAlchemy 那層是可移植的，只需要改 `DATABASE_URL`。測試仍跑在 SQLite
+  上，所以 Postgres 路徑是靠部署驗證，而不是靠 CI。
+- **用 `create_all()` 而非 migration。** 它無法變更既有資料表。Alembic 是正確的下一步，
+  也是要支援第二個使用者時我會先補的東西。
 - **單一共享 API key，沒有使用者概念。** 多使用者需要真正的身分機制；目前 schema 沒有
   `user_id` 欄位，補上去不是小工程。
 - **日曆快取在行程記憶體內。** 開多個 instance 各自持有一份，解法是 Redis。
 - **用 iCal 而非 Google Calendar API。** 不需要 OAuth 流程、token 儲存或 Cloud 專案，
   代價是只能唯讀存取單一日曆。
+- **免費方案會冷啟動。** 休眠後第一個請求要等 30-50 秒。這是方案的限制而非程式的問題，
+  但對真實使用者來說兩者沒有差別；付費方案或定時 ping 都能解決。
+
+### 待辦
+
+- [ ] Alembic migrations
+- [ ] CI 加入 Postgres（matrix build），讓部署用的資料庫也進測試
+- [ ] 由提醒自動產生週期性待辦
+- [ ] 用這個 API 的網頁前端
 
 ### 授權
 
