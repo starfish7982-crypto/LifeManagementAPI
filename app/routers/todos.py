@@ -9,15 +9,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Todo
+from app.models import Todo, User
 from app.schemas import TodoIn, TodoOut, TodoPatch
-from app.security import require_api_key
+from app.security import current_user
 
-router = APIRouter(prefix="/todos", tags=["todos"], dependencies=[Depends(require_api_key)])
+router = APIRouter(prefix="/todos", tags=["todos"])
 
 
-def _get_or_404(db: Session, todo_id: int) -> Todo:
-    todo = db.get(Todo, todo_id)
+def _get_or_404(db: Session, todo_id: int, user: User) -> Todo:
+    """Fetch a todo the caller owns.
+
+    Someone else's id returns 404 rather than 403. 403 would confirm that the row
+    exists, which turns sequential ids into a probe for how much data other accounts
+    hold. "Not found" is true from the caller's point of view: they cannot address it.
+    """
+    todo = db.scalar(select(Todo).where(Todo.id == todo_id, Todo.user_id == user.id))
     if todo is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Todo not found")
     return todo
@@ -26,12 +32,13 @@ def _get_or_404(db: Session, todo_id: int) -> Todo:
 @router.get("", response_model=list[TodoOut])
 def list_todos(
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
     done: bool | None = Query(None),
     due_before: date | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[Todo]:
-    stmt = select(Todo)
+    stmt = select(Todo).where(Todo.user_id == user.id)
     if done is not None:
         stmt = stmt.where(Todo.done.is_(done))
     if due_before is not None:
@@ -41,8 +48,14 @@ def list_todos(
 
 
 @router.post("", response_model=TodoOut, status_code=status.HTTP_201_CREATED)
-def create_todo(payload: TodoIn, db: Session = Depends(get_db)) -> Todo:
-    todo = Todo(**payload.model_dump())
+def create_todo(
+    payload: TodoIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Todo:
+    # Ownership comes from the token, never from the request body. A `user_id` field on
+    # TodoIn would let any caller write rows into any account.
+    todo = Todo(**payload.model_dump(), user_id=user.id)
     db.add(todo)
     db.commit()
     db.refresh(todo)
@@ -50,8 +63,13 @@ def create_todo(payload: TodoIn, db: Session = Depends(get_db)) -> Todo:
 
 
 @router.patch("/{todo_id}", response_model=TodoOut)
-def patch_todo(todo_id: int, payload: TodoPatch, db: Session = Depends(get_db)) -> Todo:
-    todo = _get_or_404(db, todo_id)
+def patch_todo(
+    todo_id: int,
+    payload: TodoPatch,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Todo:
+    todo = _get_or_404(db, todo_id, user)
     # exclude_unset distinguishes "field omitted" from "field set to null". Without it,
     # toggling `done` would silently wipe `due_date`.
     for field, value in payload.model_dump(exclude_unset=True).items():
@@ -62,7 +80,11 @@ def patch_todo(todo_id: int, payload: TodoPatch, db: Session = Depends(get_db)) 
 
 
 @router.delete("/{todo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_todo(todo_id: int, db: Session = Depends(get_db)) -> Response:
-    db.delete(_get_or_404(db, todo_id))
+def delete_todo(
+    todo_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    db.delete(_get_or_404(db, todo_id, user))
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

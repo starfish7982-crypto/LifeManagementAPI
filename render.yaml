@@ -17,14 +17,24 @@ services:
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
+    # Runs once per deploy, before any new instance takes traffic. Putting migrations
+    # here rather than in the container's start command matters as soon as there is
+    # more than one replica: otherwise every instance races to apply the same revision.
+    preDeployCommand: alembic upgrade head
     envVars:
-      # Render generates a long random value once and keeps it across deploys.
-      - key: API_KEY
+      # Signs access tokens. Render generates it once and reuses it across deploys —
+      # regenerating would invalidate every signed-in session.
+      - key: JWT_SECRET
         generateValue: true
 
       # Set in the Render dashboard: paste the connection string from Neon or Supabase.
       # Marked sync:false so the Blueprint prompts for it instead of storing a secret here.
       - key: DATABASE_URL
+        sync: false
+
+      # Origins allowed to call this API from a browser. Must list the frontend's exact
+      # origin (scheme + host + port); a trailing slash will not match.
+      - key: CORS_ORIGINS
         sync: false
 
       # Optional integrations. Leave blank to keep them disabled.

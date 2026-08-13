@@ -11,9 +11,41 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models import Frequency
+
+# ----------------------------------------------------------------------------- auth
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    # 8 is the floor, not the goal. A length minimum is the only password rule worth
+    # enforcing: composition rules ("one symbol, one digit") measurably push people
+    # toward predictable substitutions without adding entropy. 200 caps the work an
+    # unauthenticated caller can make the Argon2 hasher do.
+    password: str = Field(min_length=8, max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def normalise(cls, v: str) -> str:
+        # Stored lowercase so that Sally@ and sally@ cannot become two accounts.
+        return v.strip().lower()
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    email: EmailStr
+    created_at: datetime
+
+
+class Token(BaseModel):
+    access_token: str
+    # OAuth2 bearer responses are specified to carry this field; /docs reads it.
+    token_type: str = "bearer"
+    expires_in: int
+
 
 # --------------------------------------------------------------------------- assets
 
@@ -74,11 +106,8 @@ class ReminderIn(BaseModel):
     month_of_year: int | None = Field(default=None, ge=1, le=12)
     on_date: date | None = None
     active: bool = True
-
-    @field_validator("on_date")
-    @classmethod
-    def _noop(cls, v: date | None) -> date | None:
-        return v
+    days_before: int = Field(default=0, ge=0, le=365)
+    note: str | None = Field(default=None, max_length=500)
 
     def model_post_init(self, __context) -> None:
         # Cross-field rules cannot live on a single field validator.
@@ -103,6 +132,8 @@ class ReminderOut(BaseModel):
     month_of_year: int | None
     on_date: date | None
     active: bool
+    days_before: int
+    note: str | None
     created_at: datetime
     next_due: date | None
     days_until_due: int | None

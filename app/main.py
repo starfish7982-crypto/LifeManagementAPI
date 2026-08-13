@@ -6,17 +6,32 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import get_settings
 from app.database import Base, engine
-from app.routers import assets, reminders, today, todos
+from app.routers import assets, auth, reminders, today, todos
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+
+DEV_JWT_SECRET = "dev-secret-change-me"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # create_all is adequate for a single-writer SQLite service. A multi-instance
-    # deployment would need Alembic migrations instead, because create_all cannot
-    # alter an existing table.
+    settings = get_settings()
+
+    # Fail loudly at boot rather than quietly signing tokens anyone can forge. The
+    # check keys off the database rather than an explicit ENV flag because that is the
+    # signal that cannot be forgotten: if this process is talking to a real database,
+    # it is not a scratch run, whatever the environment variables claim.
+    if not settings.is_local_sqlite and settings.jwt_secret == DEV_JWT_SECRET:
+        raise RuntimeError(
+            "JWT_SECRET is still the development default. Set it to a random secret "
+            "(e.g. `openssl rand -hex 32`) before running against a real database."
+        )
+
+    # create_all bootstraps a fresh local database so a clone runs with no extra step.
+    # It cannot ALTER an existing table, so schema changes go through Alembic; see
+    # `alembic/README.md`. Against a database Alembic already manages this is a no-op.
     Base.metadata.create_all(bind=engine)
     yield
 
@@ -31,14 +46,18 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Explicit origins, never "*". The browser sends the Authorization header on these
+# requests, so a wildcard would let any page on the internet drive this API with a
+# token it tricked the user's browser into attaching.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8000"],
+    allow_origins=get_settings().cors_origin_list,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(assets.router)
 app.include_router(reminders.router)
 app.include_router(todos.router)

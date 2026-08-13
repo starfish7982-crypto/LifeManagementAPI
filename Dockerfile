@@ -14,6 +14,11 @@ COPY pyproject.toml ./
 COPY app ./app
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 
+# Migrations run as a pre-deploy step (see render.yaml), which executes in this image,
+# so the alembic config and revision history have to be present in it.
+COPY alembic.ini ./
+COPY alembic ./alembic
+
 # Run as a non-root user: if the process is compromised it cannot write outside its own data dir.
 RUN useradd --create-home --uid 1000 appuser \
     && mkdir -p /srv/data \

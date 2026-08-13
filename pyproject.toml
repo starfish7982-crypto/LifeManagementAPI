@@ -16,6 +16,18 @@ dependencies = [
     # libpq headers at image build time. SQLite needs no driver, so local development
     # and the test suite never touch this.
     "psycopg[binary]>=3.1",
+    # Auth. pwdlib is the maintained successor to passlib (which has not had a release
+    # since 2020 and breaks against bcrypt 4.1+); `PasswordHash.recommended()` selects
+    # Argon2id. PyJWT signs the access tokens. email-validator backs Pydantic's EmailStr.
+    "pwdlib[argon2]>=0.2",
+    "pyjwt>=2.8",
+    "email-validator>=2.1",
+    # Required to parse the form-encoded body of the OAuth2 password flow that
+    # /auth/login implements. FastAPI raises at import time without it.
+    "python-multipart>=0.0.9",
+    # Schema migrations. create_all() cannot alter an existing table, which is exactly
+    # what adding user_id to live tables requires.
+    "alembic>=1.13",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +46,11 @@ packages = ["app", "app.routers", "app.services"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+# Revision files are Alembic's output, not hand-written source. Linting them means
+# reformatting a generated file after every `alembic revision --autogenerate`, and a
+# migration that has already run against a database should not be edited for style.
+# alembic/env.py is hand-written and is still checked.
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

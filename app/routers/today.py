@@ -15,35 +15,44 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_calendar_client, get_telegram_client
-from app.models import Reminder, Todo
-from app.routers.reminders import _to_out
+from app.models import Reminder, Todo, User
+from app.routers.reminders import _to_out, is_within_lead_time
 from app.schemas import Message, TodayOut, TodoOut
-from app.security import require_api_key
+from app.security import current_user
 from app.services.calendar import CalendarClient
 from app.services.telegram import TelegramClient
 
-router = APIRouter(prefix="/today", tags=["today"], dependencies=[Depends(require_api_key)])
+router = APIRouter(prefix="/today", tags=["today"])
 
 
 async def _build_today(
     db: Session,
     calendar: CalendarClient,
     day: date,
+    user: User,
     refresh_calendar: bool = False,
 ) -> TodayOut:
     todos = list(
         db.scalars(
             select(Todo)
+            .where(Todo.user_id == user.id)
             .where(Todo.done.is_(False))
             .where(or_(Todo.due_date.is_(None), Todo.due_date <= day))
             .order_by(Todo.due_date.is_(None), Todo.due_date, Todo.id)
         )
     )
 
+    # `is_within_lead_time` rather than `next_due == day`: a reminder with a lead time
+    # is meant to appear during the run-up, not only on the deadline itself.
     reminders = [
         out
-        for out in (_to_out(r, day) for r in db.scalars(select(Reminder).where(Reminder.active)))
-        if out.next_due == day
+        for out in (
+            _to_out(r, day)
+            for r in db.scalars(
+                select(Reminder).where(Reminder.user_id == user.id, Reminder.active)
+            )
+        )
+        if is_within_lead_time(out)
     ]
 
     events = await calendar.events_on(day, force_refresh=refresh_calendar)
@@ -59,22 +68,30 @@ async def _build_today(
 @router.get("", response_model=TodayOut)
 async def get_today(
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
     calendar: CalendarClient = Depends(get_calendar_client),
     day: date | None = Query(None, description="Override the date; defaults to today"),
     refresh_calendar: bool = Query(False, description="Bypass the calendar cache"),
 ) -> TodayOut:
-    return await _build_today(db, calendar, day or date.today(), refresh_calendar)
+    return await _build_today(db, calendar, day or date.today(), user, refresh_calendar)
 
 
 @router.post("/notify", response_model=Message)
 async def notify_today(
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
     calendar: CalendarClient = Depends(get_calendar_client),
     telegram: TelegramClient = Depends(get_telegram_client),
     day: date | None = Query(None),
 ) -> Message:
-    """Push today's summary to Telegram. Intended to be called by a daily scheduler."""
-    today = await _build_today(db, calendar, day or date.today())
+    """Push today's summary to Telegram.
+
+    Intended to be called by a daily scheduler. The scheduler authenticates the same way
+    a browser does — POST /auth/login with credentials held as CI secrets, then send the
+    bearer token — rather than through a separate shared key. One auth path means one
+    thing to reason about when asking "who could have written this row".
+    """
+    today = await _build_today(db, calendar, day or date.today(), user)
 
     if not (today.todos or today.reminders_due or today.calendar_events):
         return Message(detail="Nothing due today; no notification sent")
