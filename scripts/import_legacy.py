@@ -32,6 +32,8 @@ import argparse
 import getpass
 import json
 import sys
+import time
+from collections import Counter
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
@@ -39,6 +41,11 @@ from typing import Any
 import httpx
 
 TIMEOUT = httpx.Timeout(60.0)  # Render's free tier cold-starts for up to ~50 seconds.
+
+# A free-tier instance can be recycled mid-run; the proxy answers 502 while the
+# replacement boots. Retrying turns a fatal import into a pause.
+RETRY_STATUSES = {429, 502, 503, 504}
+MAX_ATTEMPTS = 5
 
 
 class ImportError_(RuntimeError):
@@ -120,8 +127,33 @@ class Client:
         self.token = r.json()["access_token"]
         self.http.headers["Authorization"] = f"Bearer {self.token}"
 
+    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        """One request, retried through the failures a free-tier host actually produces.
+
+        Only transport errors and the 5xx/429 family are retried. A 409 or 422 is the
+        server saying no for a reason that will not change on the next attempt, and
+        hammering it would just take longer to reach the same conclusion.
+        """
+        delay = 2.0
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            try:
+                r = self.http.request(method, f"{self.base}{path}", **kwargs)
+            except (httpx.TransportError, httpx.TimeoutException) as exc:
+                if attempt == MAX_ATTEMPTS:
+                    raise ImportError_(
+                        f"{method} {path} failed after {attempt} tries: {exc}"
+                    ) from exc
+                print(f"    ... {type(exc).__name__}, retrying in {delay:.0f}s")
+            else:
+                if r.status_code not in RETRY_STATUSES or attempt == MAX_ATTEMPTS:
+                    return r
+                print(f"    ... {r.status_code} from the host, retrying in {delay:.0f}s")
+            time.sleep(delay)
+            delay *= 2  # 2, 4, 8, 16 — long enough to outlast a container restart.
+        raise AssertionError("unreachable")
+
     def get(self, path: str) -> Any:
-        r = self.http.get(f"{self.base}{path}")
+        r = self._request("GET", path)
         r.raise_for_status()
         return r.json()
 
@@ -129,9 +161,9 @@ class Client:
         if self.dry_run:
             print(f"    DRY-RUN {method} {path}  {json.dumps(payload, ensure_ascii=False)[:110]}")
             return {"id": 0}
-        r = self.http.request(method, f"{self.base}{path}", json=payload)
+        r = self._request(method, path, json=payload)
         if r.status_code >= 400:
-            raise ImportError_(f"{method} {path} -> {r.status_code}: {r.text}")
+            raise ImportError_(f"{method} {path} -> {r.status_code}: {r.text[:300]}")
         return r.json() if r.content else None
 
 
@@ -261,6 +293,21 @@ def import_todos(c: Client, data: dict) -> None:
         print(f"  + {'[done] ' if todo.get('done') else ''}{title[:50]}")
 
 
+def _normalise_row(values: list, width: int, name: str) -> list[str]:
+    """Coerce a legacy row to exactly `width` strings.
+
+    Old rows are not guaranteed to match their header width, and the API rejects a
+    mismatch. Padding or trimming here keeps one malformed row from failing the import.
+    """
+    out = [str(v) if v is not None else "" for v in values]
+    if len(out) < width:
+        out += [""] * (width - len(out))
+    elif len(out) > width:
+        print(f"    ! {name}: row has {len(out)} values for {width} columns, trimming")
+        out = out[:width]
+    return out
+
+
 def import_lists(c: Client, data: dict) -> None:
     tables = data.get("lists", [])
     print(f"\nLists: {len(tables)}")
@@ -269,34 +316,47 @@ def import_lists(c: Client, data: dict) -> None:
 
     for position, table in enumerate(tables):
         name = table["name"]
-        if name in existing:
-            print(f"  = {name} already imported ({len(existing[name]['items'])} rows), skipping")
-            continue
-
-        created = c.send(
-            "POST",
-            "/lists",
-            {
-                "name": name,
-                "icon": table.get("icon"),
-                "columns": table["columns"],
-                "position": position,
-            },
-        )
         width = len(table["columns"])
-        rows = 0
-        for item in table.get("items", []):
-            values = [str(v) if v is not None else "" for v in item.get("values", [])]
-            # Old rows are not guaranteed to match the header width; the API rejects
-            # mismatches, so pad or trim here rather than failing the whole import.
-            if len(values) < width:
-                values += [""] * (width - len(values))
-            elif len(values) > width:
-                print(f"    ! row has {len(values)} values for {width} columns, trimming")
-                values = values[:width]
-            c.send("POST", f"/lists/{created['id']}/items", {"values": values})
-            rows += 1
-        print(f"  + {table.get('icon', '')} {name} ({width} columns, {rows} rows)")
+        wanted = [_normalise_row(i.get("values", []), width, name) for i in table.get("items", [])]
+
+        found = existing.get(name)
+        if found is None:
+            found = c.send(
+                "POST",
+                "/lists",
+                {
+                    "name": name,
+                    "icon": table.get("icon"),
+                    "columns": table["columns"],
+                    "position": position,
+                },
+            )
+            have: list[list[str]] = []
+        else:
+            have = [row["values"] for row in found["items"]]
+
+        # Reconcile row by row rather than skipping the whole list.
+        #
+        # A list is created and then filled one row at a time, so an interrupted run —
+        # the host recycling mid-import, say — leaves a list that exists but is short.
+        # Skipping on "the name is already there" would strand those rows permanently.
+        #
+        # Counter, not a set: a list may legitimately contain the same row twice, and
+        # set membership would collapse the duplicates into one.
+        deficit = Counter(map(tuple, wanted)) - Counter(map(tuple, have))
+        added = 0
+        for row, missing in deficit.items():
+            for _ in range(missing):
+                c.send("POST", f"/lists/{found['id']}/items", {"values": list(row)})
+                added += 1
+
+        icon = table.get("icon", "")
+        if found and not added and have:
+            print(f"  = {icon} {name} complete ({len(have)} rows), skipping")
+        elif have:
+            print(f"  + {icon} {name} (+{added} rows, was {len(have)} of {len(wanted)})")
+        else:
+            print(f"  + {icon} {name} ({width} columns, {added} rows)")
 
 
 # ----------------------------------------------------------------------------- main
