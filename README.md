@@ -117,12 +117,15 @@ Two properties of free-tier container hosting drive the configuration:
   back pays a 30-50 second cold start. The engine is configured with `pool_pre_ping` so
   that request does not fail on a connection the database closed while the app slept.
 
-`create_all()` builds the schema on first boot, so no migration step is needed for the
-initial deploy — with the caveat noted under trade-offs that it cannot alter an existing
-table later.
+Schema changes are applied by `docker-entrypoint.sh`, which runs `alembic upgrade head`
+and only then starts the server — a failed migration aborts the deploy instead of
+leaving the API serving against a schema the code does not expect. See
+`alembic/README.md` for why this is not Render's `preDeployCommand`.
 
-`API_KEY` is declared with `generateValue: true`, so Render mints a random secret on
-first apply and reuses it across deploys. No key is ever committed to this repository.
+`JWT_SECRET` is declared with `generateValue: true`, so Render mints a random secret on
+first apply and reuses it across deploys. No secret is ever committed to this repository,
+and the app refuses to boot if it finds the development default in front of a real
+database.
 
 ---
 
@@ -308,11 +311,13 @@ docker build -t life-management-api . && docker run -p 8000:8000 life-management
 - **閒置時會休眠。** 約 15 分鐘沒有流量後，下一個請求要等 30-50 秒冷啟動。資料庫引擎設了
   `pool_pre_ping`，確保那個請求不會因為休眠期間被資料庫關掉的連線而失敗。
 
-第一次啟動時 `create_all()` 會建好資料表，所以初次部署不需要額外的 migration 步驟——但如同
-「取捨與限制」提到的，它之後無法變更既有資料表。
+schema 變更由 `docker-entrypoint.sh` 套用：先跑 `alembic upgrade head`，成功才啟動 server。
+migration 失敗會直接讓部署失敗，而不是讓 API 對著一個程式碼不認得的 schema 提供服務。
+為什麼不用 Render 的 `preDeployCommand`，見 `alembic/README.md`。
 
-`API_KEY` 在 `render.yaml` 裡宣告成 `generateValue: true`，Render 會在第一次套用時產生
-一組亂數並在後續部署沿用。這個 repo 裡從來不會出現任何金鑰。
+`JWT_SECRET` 在 `render.yaml` 裡宣告成 `generateValue: true`，Render 會在第一次套用時產生
+一組亂數並在後續部署沿用。這個 repo 裡從來不會出現任何密鑰，而且程式在偵測到「正式資料庫
+搭配開發用預設密鑰」時會拒絕啟動。
 
 ### 設計決策
 

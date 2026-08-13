@@ -17,10 +17,9 @@ services:
     region: ohio
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
-    # Runs once per deploy, before any new instance takes traffic. Putting migrations
-    # here rather than in the container's start command matters as soon as there is
-    # more than one replica: otherwise every instance races to apply the same revision.
-    preDeployCommand: alembic upgrade head
+    # Migrations run from docker-entrypoint.sh at container start. They belong in
+    # `preDeployCommand`, which runs once per deploy instead of once per instance, but
+    # that field is a paid-plan feature; see the comment in the entrypoint script.
     envVars:
       # Signs access tokens. Render generates it once and reuses it across deploys —
       # regenerating would invalidate every signed-in session.

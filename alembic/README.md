@@ -31,7 +31,11 @@ Autogenerate is a diff, not an oracle. It reliably misses:
 
 ## Deployment
 
-Render runs `alembic upgrade head` before starting the app; see `preDeployCommand` in
-`render.yaml`. Making it a pre-deploy step rather than part of the container's start
-command matters once more than one instance runs: every replica would otherwise race
-to apply the same migration on boot.
+`docker-entrypoint.sh` runs `alembic upgrade head` and only then execs uvicorn, so a
+failed migration is a failed deploy rather than a server running against a schema that
+does not match the code.
+
+The better home for this is Render's `preDeployCommand`, which runs once per deploy
+instead of once per instance — but that is a paid-plan feature. The difference only
+starts to matter above one replica, which the free plan does not offer; at that point
+the fix is to move the line into `preDeployCommand`, not to add locking to the script.

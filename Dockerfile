@@ -14,10 +14,14 @@ COPY pyproject.toml ./
 COPY app ./app
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 
-# Migrations run as a pre-deploy step (see render.yaml), which executes in this image,
-# so the alembic config and revision history have to be present in it.
+# The entrypoint runs `alembic upgrade head` before starting the server, so the config
+# and the revision history have to be in the image.
 COPY alembic.ini ./
 COPY alembic ./alembic
+COPY docker-entrypoint.sh ./
+# chmod in the image rather than relying on the checked-in file mode: a clone on Windows,
+# or an archive export, can lose the execute bit and the container would fail to start.
+RUN chmod +x docker-entrypoint.sh
 
 # Run as a non-root user: if the process is compromised it cannot write outside its own data dir.
 RUN useradd --create-home --uid 1000 appuser \
@@ -37,5 +41,6 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
     CMD python -c "import httpx,os,sys; sys.exit(0 if httpx.get(f\"http://127.0.0.1:{os.environ.get('PORT','8000')}/health\").status_code==200 else 1)"
 
-# Shell form so $PORT expands at container start rather than being passed literally.
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# The entrypoint migrates, then execs uvicorn. A failed migration aborts the start,
+# which is what stops the server from ever serving against a mismatched schema.
+CMD ["./docker-entrypoint.sh"]
