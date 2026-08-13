@@ -16,6 +16,14 @@ Schema shape and why:
   Todo
       Flat list with a due date and a done flag.
 
+  ListTable 1---* ListItem
+      User-defined tables: the columns are a JSON array of headings, and each row holds
+      a positional array of values. This is the generic half of the app — subscriptions,
+      warranties, budgets — where the shape is whatever the owner decides.
+
+  AssetGoal
+      One savings target per user, so the dashboard can show progress toward it.
+
   User 1---* everything above
       Every row belongs to exactly one user. The ownership column is NOT NULL with an
       ON DELETE CASCADE foreign key, so orphaned rows are impossible and deleting an
@@ -31,6 +39,7 @@ from decimal import Decimal
 from enum import Enum
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     CheckConstraint,
     Date,
@@ -166,6 +175,89 @@ class Reminder(Base):
         # user_id is what makes it usable for that access pattern.
         Index("ix_reminders_user_active", "user_id", "active"),
     )
+
+
+class AssetGoal(Base):
+    """A savings target, at most one per user.
+
+    Uniqueness is on user_id alone: "the goal" is singular in the UI, and enforcing that
+    in the database means the API cannot accidentally end up with two and have to pick.
+    """
+
+    __tablename__ = "asset_goals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(200), nullable=False)
+    next_step: Mapped[str | None] = mapped_column(String(200))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
+class ListTable(Base):
+    """A user-defined table: a name, an ordered set of column headings, and rows.
+
+    Named ListTable rather than List because `list` is a builtin and `List` is a typing
+    import; a model class that shadows either is a readability trap in every file that
+    touches it.
+
+    The columns live as a JSON array of strings rather than as their own table. The
+    alternative — a columns table plus an EAV values table — buys per-column types and
+    constraints, which this feature does not have: every cell here is free text typed by
+    the person who owns the row. It would cost a three-way join to render one screen.
+    """
+
+    __tablename__ = "lists"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    icon: Mapped[str | None] = mapped_column(String(16))
+    columns: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    # Explicit display order. Without it the UI would be at the mercy of whatever order
+    # the database returned rows in, which is not guaranteed to be stable.
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    items: Mapped[list[ListItem]] = relationship(
+        back_populates="table",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="ListItem.position",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "name", name="uq_list_user_name"),
+        Index("ix_lists_user_position", "user_id", "position"),
+    )
+
+
+class ListItem(Base):
+    """One row. `values` is positional: values[i] belongs under columns[i].
+
+    Keeping them aligned is the API's job, not the database's — no SQL constraint can
+    express "this array is as long as that array on the parent". `app/routers/lists.py`
+    validates it on every write, and there is a test for the mismatch.
+    """
+
+    __tablename__ = "list_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    list_id: Mapped[int] = mapped_column(
+        ForeignKey("lists.id", ondelete="CASCADE"), nullable=False
+    )
+    values: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    table: Mapped[ListTable] = relationship(back_populates="items")
+
+    __table_args__ = (Index("ix_list_items_list_position", "list_id", "position"),)
 
 
 class Todo(Base):

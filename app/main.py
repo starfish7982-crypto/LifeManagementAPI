@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import Base, engine
-from app.routers import assets, auth, reminders, today, todos
+from app.routers import assets, auth, lists, reminders, today, todos
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -64,6 +64,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(assets.router)
+app.include_router(lists.router)
 app.include_router(reminders.router)
 app.include_router(todos.router)
 app.include_router(today.router)

@@ -96,6 +96,54 @@ class CategoryTotal(BaseModel):
     total: Decimal
 
 
+class AssetGoalIn(BaseModel):
+    amount: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    purpose: str = Field(min_length=1, max_length=200)
+    next_step: str | None = Field(default=None, max_length=200)
+
+
+class AssetGoalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    amount: Decimal
+    purpose: str
+    next_step: str | None
+    updated_at: datetime
+
+
+# ---------------------------------------------------------------------------- lists
+
+
+class ListItemIn(BaseModel):
+    values: list[str] = Field(max_length=50)
+
+
+class ListItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    values: list[str]
+    position: int
+
+
+class ListIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    icon: str | None = Field(default=None, max_length=16)
+    # At least one column: a table with no columns can hold no information, and every
+    # row in it would have to be the empty array.
+    columns: list[str] = Field(min_length=1, max_length=50)
+    position: int = Field(default=0, ge=0)
+
+
+class ListOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    icon: str | None
+    columns: list[str]
+    position: int
+    created_at: datetime
+    items: list[ListItemOut]
+
+
 # ------------------------------------------------------------------------ reminders
 
 
