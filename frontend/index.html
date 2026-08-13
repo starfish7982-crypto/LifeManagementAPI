@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#14211c">
+<title>LifeManagement</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="auth.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>">
+</head>
+<body>
+
+<!-- Sign-in gate. Shown until a token is in hand; the app shell below stays hidden
+     rather than being built and torn down, so no view can render against no session. -->
+<div id="auth" class="auth-screen" hidden>
+  <!-- method="post" is not there because this form is ever submitted natively — app.js
+       intercepts it. It is there for when app.js has NOT loaded: a form with no method
+       defaults to GET, and a native submit would put the password in the URL, the
+       address bar, the browser history, and any Referer header the next request sends.
+       POST puts it in a request body that goes nowhere. Defaults matter most exactly
+       when the code you were relying on did not run. -->
+  <form id="auth-form" class="auth-card" method="post" action="" autocomplete="on">
+    <div class="auth-brand">🌱 LifeManagement</div>
+    <p class="auth-sub" id="auth-sub">登入以檢視你的資料</p>
+
+    <div class="field">
+      <label for="auth-email">Email</label>
+      <!-- autocomplete hints let a password manager fill and, more importantly, save
+           these. A generated password nobody can remember is only usable if the
+           browser offers to keep it. -->
+      <input type="email" id="auth-email" name="email" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="auth-password">密碼</label>
+      <input type="password" id="auth-password" name="password"
+             autocomplete="current-password" minlength="8" required>
+    </div>
+
+    <p class="auth-error" id="auth-error" hidden></p>
+
+    <button type="submit" class="btn primary auth-submit" id="auth-submit">登入</button>
+    <p class="auth-toggle">
+      <span id="auth-toggle-text">還沒有帳號？</span>
+      <button type="button" class="linklike" id="auth-toggle">註冊</button>
+    </p>
+  </form>
+</div>
+
+<div class="layout" id="app" hidden>
+  <header class="mobile-top">
+    <div class="brand">🌱 LifeManagement</div>
+  </header>
+
+  <nav class="sidebar" aria-label="主選單">
+    <div class="brand desktop-only">🌱 LifeManagement</div>
+    <button type="button" class="nav-btn active" data-view="today">
+      <span class="nav-ico" aria-hidden="true">✅</span><span class="nav-lbl">今日</span>
+    </button>
+    <button type="button" class="nav-btn" data-view="dashboard">
+      <span class="nav-ico" aria-hidden="true">📈</span><span class="nav-lbl">總覽</span>
+    </button>
+    <button type="button" class="nav-btn" data-view="assets">
+      <span class="nav-ico" aria-hidden="true">💰</span><span class="nav-lbl">資產</span>
+    </button>
+    <button type="button" class="nav-btn" data-view="lists">
+      <span class="nav-ico" aria-hidden="true">📋</span><span class="nav-lbl">清單</span>
+    </button>
+    <button type="button" class="nav-btn" data-view="reminders">
+      <span class="nav-ico" aria-hidden="true">⏰</span><span class="nav-lbl">提醒</span>
+    </button>
+
+    <div class="sidebar-footer desktop-only">
+      <div class="signed-in-as" id="signed-in-as"></div>
+      <button type="button" class="linklike" id="change-password">變更密碼</button>
+      <button type="button" class="linklike" id="sign-out">登出</button>
+    </div>
+  </nav>
+
+  <main id="main" class="content"></main>
+</div>
+
+<div id="toast"></div>
+
+<!-- Opened over file://, ES modules are blocked as a cross-origin load and app.js never
+     runs — leaving a page that looks functional but has no behaviour attached. Say so
+     instead. The check is inverted (module scripts do not run, classic ones do), so
+     this only appears in the broken case. -->
+<noscript><div class="error-note">這個頁面需要 JavaScript。</div></noscript>
+<script>
+  if (location.protocol === "file:") {
+    document.documentElement.innerHTML =
+      '<div style="font:15px system-ui;padding:40px;max-width:560px;margin:auto">' +
+      '<h2>請透過網址開啟，不要直接開啟檔案</h2>' +
+      '<p>瀏覽器會封鎖 <code>file://</code> 底下的模組載入，所以這個頁面不會運作。</p>' +
+      '<p>線上版本：<a href="https://life-management-api-jkje.onrender.com/app/">' +
+      'life-management-api-jkje.onrender.com</a></p>' +
+      '<p>本機開發：<code>uvicorn app.main:app --reload</code> 之後開 ' +
+      '<code>http://127.0.0.1:8000/</code></p></div>';
+  }
+</script>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

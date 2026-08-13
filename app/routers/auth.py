@@ -16,8 +16,14 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.models import User
-from app.schemas import Token, UserCreate, UserOut
-from app.security import authenticate, create_access_token, current_user, hash_password
+from app.schemas import PasswordChange, Token, UserCreate, UserOut
+from app.security import (
+    authenticate,
+    create_access_token,
+    current_user,
+    hash_password,
+    verify_password,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,3 +61,35 @@ def login(
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(current_user)) -> User:
     return user
+
+
+@router.post("/password", response_model=Token)
+def change_password(
+    payload: PasswordChange,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+    settings: Settings = Depends(get_settings),
+) -> Token:
+    """Rotate the password, keeping the account and everything in it.
+
+    Deleting and re-registering is the other way to get a new password, and it takes
+    the data with it. That is a bad enough outcome that "I have to change my password"
+    should not lead there.
+
+    Returns a fresh token. Tokens issued before the change stay valid until they expire
+    — they are signed, not stored, so there is nothing to revoke. Properly invalidating
+    them needs either a token version column checked on every request or a deny-list
+    with its own storage; both are the right answer for a service with real users and
+    more than this one needs. The 12-hour expiry is the bound in the meantime, and this
+    comment is here so that limit is a known one rather than an assumed absence.
+    """
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
+
+    user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    db.refresh(user)
+    return Token(
+        access_token=create_access_token(user, settings),
+        expires_in=settings.access_token_ttl_minutes * 60,
+    )

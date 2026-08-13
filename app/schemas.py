@@ -40,6 +40,15 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
+class PasswordChange(BaseModel):
+    # The current password is required even though the caller already holds a valid
+    # token. A token can be a borrowed laptop or a stolen localStorage entry; asking
+    # for the password is what stops that from becoming permanent ownership of the
+    # account. It is the reason this is not just `new_password`.
+    current_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
 class Token(BaseModel):
     access_token: str
     # OAuth2 bearer responses are specified to carry this field; /docs reads it.

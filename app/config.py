@@ -33,7 +33,10 @@ class Settings(BaseSettings):
     calendar_cache_ttl_seconds: int = 900
 
     # Comma-separated so it can be set as a single environment variable on Render.
-    cors_origins: str = "http://localhost:5173,http://localhost:8000"
+    # Empty by default: the UI ships from this same app, so nothing needs cross-origin
+    # access until some other client does, and an origin list nobody uses is just an
+    # opening left ajar.
+    cors_origins: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

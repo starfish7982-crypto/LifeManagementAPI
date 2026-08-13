@@ -18,6 +18,10 @@ RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir .
 # and the revision history have to be in the image.
 COPY alembic.ini ./
 COPY alembic ./alembic
+# The UI is served by this same process (app/main.py mounts it at /app), so it has to
+# be in the image. No build step: the frontend is plain modules the browser loads
+# directly, which is why there is no node_modules here and no bundler in CI.
+COPY frontend ./frontend
 COPY docker-entrypoint.sh ./
 # chmod in the image rather than relying on the checked-in file mode: a clone on Windows,
 # or an archive export, can lose the execute bit and the container would fail to start.
