@@ -4,7 +4,7 @@
     python scripts/import_legacy.py ../LifeManagement-main/data --dry-run
     python scripts/import_legacy.py ../LifeManagement-main/data \
         --api https://life-management-api-jkje.onrender.com \
-        --email you@example.com
+        --email you@example.com --register
 
 It talks to the running API over HTTP rather than writing to the database directly.
 That costs some speed for a few hundred rows and buys three things: the same validation
@@ -83,10 +83,38 @@ class Client:
         self.http = httpx.Client(timeout=TIMEOUT)
         self.token: str | None = None
 
+    def register(self, email: str, password: str) -> bool:
+        """Create the account if it is not there. Returns True if it was created.
+
+        Safe to call when the account already exists: the API answers 409, which is
+        treated as "fine, carry on and log in".
+        """
+        r = self.http.post(
+            f"{self.base}/auth/register", json={"email": email, "password": password}
+        )
+        if r.status_code == 201:
+            return True
+        if r.status_code == 409:
+            return False
+        raise ImportError_(f"Could not register {email} ({r.status_code}): {r.text}")
+
     def login(self, email: str, password: str) -> None:
         r = self.http.post(
             f"{self.base}/auth/login", data={"username": email, "password": password}
         )
+        if r.status_code == 401:
+            # The API will not say whether the address is registered — that would make
+            # /auth/login an account-enumeration oracle. Correct for the API, unhelpful
+            # for the person running a script, so spell out both branches here.
+            raise ImportError_(
+                f"Login was rejected for {email}.\n"
+                "The API does not distinguish a wrong password from an unknown account, "
+                "so it is one of:\n"
+                f"  - the password is wrong\n"
+                f"  - no account exists for {email} yet\n"
+                f"To tell them apart, POST /auth/register at {self.base}/docs — "
+                "409 means the account exists, 201 means it did not and now does."
+            )
         if r.status_code != 200:
             raise ImportError_(f"Login failed ({r.status_code}): {r.text}")
         self.token = r.json()["access_token"]
@@ -282,6 +310,11 @@ def main() -> int:
     parser.add_argument("--api", default="http://127.0.0.1:8000", help="API base URL")
     parser.add_argument("--email", help="account to import into")
     parser.add_argument(
+        "--register",
+        action="store_true",
+        help="create the account first if it does not exist, then log in",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="print what would be sent without sending it or logging in",
@@ -301,6 +334,12 @@ def main() -> int:
         # Prompted, never taken as an argument: anything on the command line lands in
         # the shell history and in the process list.
         password = getpass.getpass(f"Password for {args.email}: ")
+        if args.register:
+            print(f"Checking for an account at {args.api} ...")
+            if client.register(args.email, password):
+                print(f"  created {args.email}")
+            else:
+                print(f"  {args.email} already exists, logging in")
         print(f"Logging in to {args.api} ...")
         client.login(args.email, password)
 
