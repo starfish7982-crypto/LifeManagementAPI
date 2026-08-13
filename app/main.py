@@ -29,10 +29,15 @@ async def lifespan(app: FastAPI):
             "(e.g. `openssl rand -hex 32`) before running against a real database."
         )
 
-    # create_all bootstraps a fresh local database so a clone runs with no extra step.
-    # It cannot ALTER an existing table, so schema changes go through Alembic; see
-    # `alembic/README.md`. Against a database Alembic already manages this is a no-op.
-    Base.metadata.create_all(bind=engine)
+    # Bootstrap the schema for local SQLite only, so a fresh clone runs with no extra
+    # step. Deliberately NOT done against a real database: create_all builds tables
+    # without writing an alembic_version row, so Alembic later finds a populated schema
+    # it has no history for and tries to create everything from scratch. That failure
+    # ("relation already exists", on every deploy, unrecoverable without dropping the
+    # tables by hand) is exactly what this guard prevents. Managed databases get their
+    # schema from `alembic upgrade head` in docker-entrypoint.sh — one owner, not two.
+    if settings.is_local_sqlite:
+        Base.metadata.create_all(bind=engine)
     yield
 
 
