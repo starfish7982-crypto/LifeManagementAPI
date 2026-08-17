@@ -6,14 +6,29 @@ which keeps test runs independent of each other.
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# app/config.py -> app/ -> the project root, the same walk main.py does to find web/dist.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # env_file is anchored for the same reason database_url below is: a relative path
+    # here means .env is only found when the process happens to start in the root.
+    model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", extra="ignore")
 
-    database_url: str = "sqlite:///./life.db"
+    # Absolute, not `sqlite:///./life.db`.
+    #
+    # A relative path means "wherever this process was started from", so running
+    # `uvicorn app.main:app` after a `cd web` silently opened a *different* database:
+    # empty, schema created on the spot by the create_all in main.py, no accounts. The
+    # app started fine and the only symptom was that the password no longer worked —
+    # which reads as lost data rather than as a second file. The real one was untouched
+    # a directory up. Anchoring it means there is one local database, wherever you
+    # happen to be standing when you start the server.
+    database_url: str = f"sqlite:///{PROJECT_ROOT / 'life.db'}"
 
     # Signs access tokens. Anyone holding this value can mint a token for any account,
     # so it must be a real random secret in any deployment. The insecure default exists
