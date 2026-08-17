@@ -589,9 +589,15 @@ input:where(
     align-items: center;
     gap: 10px;
   }
+  /* Language only. 變更密碼 and 登出 are hidden here at the owner's request — this is a
+     personal instance that stays signed in on their own phone, so the two of them were
+     spending the width of the header on actions never taken from it.
+
+     Note what this costs: there is no other sign-out anywhere in the app, so on a phone
+     there is now no way to sign out at all. Clearing the browser's site data still ends
+     the session, and either link can come back by deleting this rule. */
   .mobile-account .linklike {
-    color: #9fb3a8;
-    font-size: 11.5px;
+    display: none;
   }
 }
 
