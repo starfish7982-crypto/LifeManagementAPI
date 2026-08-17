@@ -51,6 +51,15 @@ export interface Resource<T> extends ResourceStatus {
   loading: boolean;
   /** A refetch is in flight but there is already data to keep showing. */
   refreshing: boolean;
+  /**
+   * True while what is on screen came from the cache and no request has been made.
+   *
+   * For the follow-up work that only makes sense after the server was actually asked.
+   * Without it, an effect written as "when the data arrives, also do X" fires on a
+   * cache hit too, and X is usually another request — which is the cost the cache
+   * exists to avoid.
+   */
+  servedFromCache: boolean;
   /** Refetch. Views call this after a write instead of patching local state, so what
    *  is on screen is always what the server stored. */
   reload: () => void;
@@ -66,12 +75,63 @@ export interface Resource<T> extends ResourceStatus {
   patch: (update: (current: T) => T) => void;
 }
 
-export function useResource<T>(fetcher: () => Promise<T>, deps: unknown[] = []): Resource<T> {
-  const [data, setData] = useState<T | undefined>(undefined);
+/**
+ * Responses kept across mounts, for the screens that opted in with a `cacheKey`.
+ *
+ * Switching screens unmounts the old one — `ViewBody` is a switch that returns a
+ * different component — so without this, every visit to a screen refetches everything
+ * it shows. On a host that idles and a database that bills by the second, walking
+ * through the tabs and back is a surprising amount of work for data that did not
+ * change.
+ *
+ * Deliberately module-level rather than React state: it has to outlive the components
+ * that read it, which is the entire point. It is memory-only, so a page reload still
+ * fetches fresh — the cache answers "I was just here", not "I saw this yesterday".
+ */
+const cache = new Map<string, unknown>();
+
+/**
+ * Drop everything. Called on sign-out and on session expiry.
+ *
+ * Not optional: the cache is keyed by resource, not by account, so leaving it in place
+ * would show the previous account's rows to the next one to sign in on this browser —
+ * before any request went out, so nothing server-side would catch it.
+ */
+export function clearResourceCache(): void {
+  cache.clear();
+}
+
+/** Forget one entry, so the next screen that reads it fetches again. */
+export function invalidateResource(key: string): void {
+  cache.delete(key);
+}
+
+export function useResource<T>(
+  fetcher: () => Promise<T>,
+  deps: unknown[] = [],
+  cacheKey?: string,
+): Resource<T> {
+  // Read once, at mount. Reading on every render would swap live data back to the
+  // cached copy whenever something else wrote to the same key mid-flight.
+  const seed = useRef(cacheKey === undefined ? undefined : (cache.get(cacheKey) as T | undefined));
+  const hydrated = seed.current !== undefined;
+
+  const [data, setData] = useState<T | undefined>(seed.current);
   const [error, setError] = useState<ApiError | undefined>(undefined);
-  const [settled, setSettled] = useState(false);
-  const [inFlight, setInFlight] = useState(true);
+  const [settled, setSettled] = useState(hydrated);
+  const [inFlight, setInFlight] = useState(!hydrated);
   const [nonce, setNonce] = useState(0);
+
+  // Set only while the cached value is what is on screen and no fetch has replaced it.
+  // A caller that needs to know whether the server was actually asked reads this —
+  // "the data is here" and "we just talked to the server" stop being the same thing
+  // once a cache exists, and code written before that assumed they were.
+  const [servedFromCache, setServedFromCache] = useState(hydrated);
+
+  // Consumed by the effect below on its first run to skip the initial fetch. A ref
+  // rather than state: flipping it must not cause a render, and the effect must see
+  // the new value immediately rather than on the next pass.
+  const skipInitialFetch = useRef(hydrated);
 
   // Bumped on every run; a response whose token is no longer current is discarded.
   const runId = useRef(0);
@@ -92,6 +152,14 @@ export function useResource<T>(fetcher: () => Promise<T>, deps: unknown[] = []):
     // order, and without this the slower, older one would overwrite the newer result.
     // A cleanup that read `runId.current` would be reading whatever the newest run had
     // set, which is not the value this run needs to compare against.
+    // A cache hit already put the answer on screen. Asking anyway would make the cache
+    // a way to render sooner rather than a way to fetch less, which is not what it is
+    // for. `reload()` bumps `nonce`, so this only ever skips the mount fetch.
+    if (skipInitialFetch.current) {
+      skipInitialFetch.current = false;
+      return;
+    }
+
     let cancelled = false;
     const id = ++runId.current;
 
@@ -102,7 +170,9 @@ export function useResource<T>(fetcher: () => Promise<T>, deps: unknown[] = []):
       .current()
       .then((value) => {
         if (cancelled || runId.current !== id) return;
+        if (cacheKey !== undefined) cache.set(cacheKey, value);
         setData(value);
+        setServedFromCache(false);
         setSettled(true);
         setInFlight(false);
       })
@@ -123,15 +193,26 @@ export function useResource<T>(fetcher: () => Promise<T>, deps: unknown[] = []):
 
   const reload = useCallback(() => setNonce((n) => n + 1), []);
 
-  const patch = useCallback((update: (current: T) => T) => {
-    setData((current) => (current === undefined ? current : update(current)));
-  }, []);
+  const patch = useCallback(
+    (update: (current: T) => T) => {
+      setData((current) => {
+        if (current === undefined) return current;
+        const next = update(current);
+        // Written through, or an optimistic tick would be undone by leaving the screen
+        // and coming back to the pre-tick copy still sitting in the cache.
+        if (cacheKey !== undefined) cache.set(cacheKey, next);
+        return next;
+      });
+    },
+    [cacheKey],
+  );
 
   return {
     data,
     error,
     loading: !settled,
     refreshing: settled && inFlight,
+    servedFromCache,
     reload,
     patch,
   };

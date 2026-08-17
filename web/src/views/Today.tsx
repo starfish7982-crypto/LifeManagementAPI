@@ -7,7 +7,7 @@ import { ApiError, api } from "../lib/api";
 import { useToast } from "../lib/context";
 import { fmtDate, longDate } from "../lib/format";
 import { t } from "../lib/i18n";
-import { useResource } from "../lib/useResource";
+import { invalidateResource, useResource } from "../lib/useResource";
 import { useSortable } from "../lib/useSortable";
 import type { Todo } from "../lib/types";
 
@@ -15,8 +15,11 @@ type TodoBucket = Todo["bucket"];
 
 export function Today() {
   const toast = useToast();
-  const today = useResource(() => api.today());
-  const todos = useResource(() => api.todos());
+  // Cached across mounts. /today reads the calendar feed and /todos is asked again
+  // straight after it, so every return to this tab was two requests and a wake-up for
+  // data that had not moved. "Refresh" below is the way to ask again.
+  const today = useResource(() => api.today(), [], "today");
+  const todos = useResource(() => api.todos(), [], "todos");
   const [pendingDelete, setPendingDelete] = useState<Todo | null>(null);
   const [draft, setDraft] = useState("");
   const [refreshingCalendar, setRefreshingCalendar] = useState(false);
@@ -39,12 +42,15 @@ export function Today() {
 
   // The /today response may have just captured Google activities as local todos. The
   // independent /todos request can finish first, so reload it once the day is known.
+  //
+  // Not on a cache hit: nothing ran, so nothing was captured, and reloading would spend
+  // the request the cache was there to save — on the one screen where that matters most.
   useEffect(() => {
-    if (today.data) todos.reload();
+    if (today.data && !today.servedFromCache) todos.reload();
   // A date change is the relevant event; depending on the whole response would reload
   // after every optimistic patch and create a request loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today.data?.date]);
+  }, [today.data?.date, today.servedFromCache]);
 
   const setDone = async (todo: Todo, done: boolean) => {
     todos.patch((rows) => rows.map((row) => (row.id === todo.id ? { ...row, done } : row)));
@@ -96,6 +102,12 @@ export function Today() {
       const refreshed = await api.today(true);
       today.patch(() => refreshed);
       todos.reload();
+      // The other cached screens are dropped here too, so this button is the single
+      // answer to "I changed something elsewhere, go and look again" rather than one
+      // refresh per tab. They refetch when next opened, not now — the point is to stop
+      // paying for data nobody is looking at.
+      invalidateResource("travel:trip");
+      invalidateResource("travel:benefits");
       toast(t("calendar_updated"));
     } catch (err) {
       toast(err instanceof ApiError ? err.detail : t("save_failed"));

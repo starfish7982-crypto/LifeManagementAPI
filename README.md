@@ -322,6 +322,13 @@ today", which is a lie.
 every asset filename, so those can never change and are served `immutable`. `index.html`
 names them, so a cached copy is how a browser ends up running last week's JavaScript.
 
+**Today and Travel are fetched once per visit, then refreshed by hand.** Switching
+screens unmounts the old one, so every trip through the tabs was refetching everything
+— including `/today`, which reads the calendar feed. Those two screens keep their
+responses in memory, and Refresh on Today drops all of them. Manual invalidation is
+usually the wrong default, but here the data is one person's own and changes when they
+change it, so the alternative was paying for a wake-up to be told nothing had moved.
+
 **Telegram messages are HTML-escaped.** `parse_mode=HTML` plus a todo titled
 `<b>rent` would corrupt the message. Tested.
 
@@ -657,6 +664,12 @@ curl -X POST http://localhost:8000/assets/snapshots \
 **建置產物永久快取，`index.html` 完全不快取。** Vite 會把內容雜湊寫進每個資源檔名，
 所以那些檔案不可能改變，可以標成 `immutable`。而 `index.html` 的任務就是指出目前用的是
 哪些檔案，快取它正是瀏覽器跑到上週 JavaScript 的原因。
+
+**「今日」和「旅遊」每次造訪只抓一次，之後靠手動更新。** 切換畫面會 unmount 舊的，
+所以每次在分頁間走一圈都會把所有東西重抓一遍——包括會去讀日曆來源的 `/today`。
+這兩個畫面的回應會留在記憶體裡，而「今日」的更新按鈕會把它們全部丟掉。
+手動失效通常不是好的預設，但這裡的資料是同一個人自己的、只有他改它才會變，
+所以另一個選擇是花一次喚醒的代價去確認「什麼都沒變」。
 
 **Telegram 訊息做 HTML 跳脫。** `parse_mode=HTML` 加上一個叫 `<b>rent` 的待辦會讓訊息
 壞掉。有測試。

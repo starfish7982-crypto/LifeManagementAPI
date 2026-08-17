@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { api, session, setUnauthorisedHandler } from "./api";
 import { persistLang, setActiveLang, storedLang } from "./i18n";
 import type { Lang } from "./i18n";
+import { clearResourceCache } from "./useResource";
 
 /* --------------------------------------------------------------------- language */
 
@@ -61,13 +62,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     session.token ? "checking" : "out",
   );
 
+  // Every path out of a session clears the cached responses with it. The cache is keyed
+  // by resource and not by account, so a leftover entry would be shown to whoever signs
+  // in next on this browser — rendered from memory, before any request went out, so no
+  // amount of server-side scoping would catch it. Signing *in* clears too: arriving at
+  // a signed-out screen is not the only way to get here.
   const signIn = useCallback((next: string) => {
+    clearResourceCache();
     setUsername(next);
     setStatus("in");
   }, []);
 
   const signOut = useCallback(() => {
     session.clear();
+    clearResourceCache();
     setUsername(null);
     setStatus("out");
   }, []);
@@ -76,6 +84,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // has to think about expiry.
   useEffect(() => {
     setUnauthorisedHandler(() => {
+      clearResourceCache();
       setUsername(null);
       setStatus("out");
     });

@@ -21,8 +21,11 @@ type LodgingFormValues = LodgingDates & {
 
 export function Travel() {
   const toast = useToast();
-  const trip = useResource(() => api.trip());
-  const benefits = useResource(() => api.travelBenefits());
+  // Cached across mounts: a trip and its card benefits change a few times a year, and
+  // this tab was refetching both every time it was opened. Refreshing on the Today
+  // screen drops these, so they are fetched again the next time this one is opened.
+  const trip = useResource(() => api.trip(), [], "travel:trip");
+  const benefits = useResource(() => api.travelBenefits(), [], "travel:benefits");
   const [lodgingDates, setLodgingDates] = useState<LodgingDates | null>(null);
   const [addingBenefit, setAddingBenefit] = useState(false);
   const [editingBenefit, setEditingBenefit] = useState<TravelBenefit | null>(null);
