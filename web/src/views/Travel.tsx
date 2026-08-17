@@ -130,7 +130,16 @@ export function Travel() {
                   )}
                   {lodging.confirmation_number && <div className="todo-note">{t("confirmation_number")}: {lodging.confirmation_number}</div>}
                   {lodging.phone && <div className="todo-note">{t("phone")}: {lodging.phone}</div>}
-                  {lodging.details && <div className="todo-note">{lodging.details}</div>}
+                  {/* Suppressed when it swallows the address.
+                      A lodging captured from the calendar gets the whole event
+                      description in `details`, which already contains the address, the
+                      dates and the confirmation number — all three of which this card
+                      shows above in their own fields. The card was ending in a grey
+                      paragraph repeating everything it had just said. A note the user
+                      typed themselves does not contain the address, so it survives. */}
+                  {lodging.details && !(lodging.address && lodging.details.includes(lodging.address)) && (
+                    <div className="todo-note">{lodging.details}</div>
+                  )}
                 </div>
                 <button
                   type="button"

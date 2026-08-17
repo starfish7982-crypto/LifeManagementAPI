@@ -458,21 +458,34 @@ input.inline-name { width: 100%; }
     border-top: 1px solid rgba(255,255,255,.12);
     box-shadow: 0 -4px 20px rgba(0,0,0,.18);
   }
+  /* `flex: 1 1 0` with `min-width: 0`, not `flex: 1`.
+     `flex: 1` leaves the basis at `auto` and the min-width at `auto`, so each button
+     was at least as wide as its own label. Nine of those need 612px and the bar is
+     390px, which pushed the last three destinations — Idea, 提醒, 設定 — off the
+     right-hand edge of a phone with no way to reach them. Zero basis and zero minimum
+     let them share the width they actually have. */
   .nav-btn {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     gap: 2px;
-    padding: 8px 2px;
+    padding: 7px 1px;
     border-radius: 10px;
-    font-size: 10.5px;
     font-weight: 500;
     min-height: 50px;
     text-align: center;
   }
-  .nav-btn .nav-ico { font-size: 18px; }
-  .nav-btn .nav-lbl { line-height: 1.2; font-size: 10px; }
+  .nav-btn .nav-ico { font-size: 17px; }
+  /* Wraps rather than truncates: "買菜與食譜" over two lines is still readable, and an
+     ellipsis in a nine-item bar would hide the difference between neighbours. */
+  .nav-btn .nav-lbl {
+    line-height: 1.15;
+    font-size: 9.5px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .nav-btn.active { background: rgba(255,255,255,.16); }
   .sidebar { padding: 2px 0 calc(2px + var(--safe-bottom)); }
 
@@ -484,6 +497,12 @@ input.inline-name { width: 100%; }
   .page-title { font-size: 19px; }
   .page-sub { margin-bottom: 14px; font-size: 12.5px; }
   .card { padding: 14px 14px; }
+  /* Card headings had no size of their own, so they fell back to the browser default
+     of 1.5em — 24px, larger than the page title above them, on the screen with the
+     least room to spare. */
+  .card h2 { font-size: 16px; margin-bottom: 10px; line-height: 1.35; }
+  .card-head-row { align-items: center; gap: 8px; }
+  .card-head-row h2 { margin-bottom: 0; }
   .hero-num { font-size: 28px; }
 
   .btn { min-height: 42px; padding: 10px 14px; font-size: 14.5px; }
@@ -517,14 +536,40 @@ input.inline-name { width: 100%; }
   .grocery-grid { grid-template-columns: 1fr; }
   .grocery-shopping-card, .grocery-recipes-card { min-height: 0; }
   .grocery-quantity { width: 100px !important; flex-basis: 100px; }
-  .meal-ideas-tools { align-items: stretch; }
+  /* The meal table is as wide as the reminders one and scrolls the same way. Without
+     this it pushed the page 13px past the viewport — enough to make every screen in
+     the app drift sideways under a thumb, which reads as a broken app rather than as
+     one wide table. */
+  .meal-ideas-table { overflow-x: auto; }
+  .meal-ideas-tools { align-items: stretch; flex-wrap: wrap; }
+  .meal-ideas-category-filter { width: auto; flex: 1 1 120px; min-width: 0; }
   .meal-ideas-search { flex: 1; width: auto; }
   .meal-ideas-category-filter { width: 140px; }
   .travel-grid { grid-template-columns: 1fr; }
   .travel-info-card, .travel-packing-card { min-height: 0; }
-  .travel-date-fields, .lodging-date-fields { grid-template-columns: 1fr; }
+  /* Two dates stay side by side. They are a pair — a start and an end — and stacking
+     them cost a whole extra row to say something the pair already said. */
+  .travel-date-fields, .lodging-date-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .travel-date-fields input, .lodging-date-fields input { padding: 10px 8px; }
+  /* A hotel's full postal address is four lines on a phone and the reason the card was
+     taller than the screen. Two lines is enough to recognise which place it is; the
+     link still navigates to the full address. */
+  .travel-map-link {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .travel-lodging-card .todo-title { font-size: 14.5px; line-height: 1.4; }
 
-  .lists-layout { flex-direction: column; gap: 12px; }
+  /* `align-items: stretch` is load-bearing. The desktop rule sets `flex-start`, which
+     in a column direction sizes each child to its own content — so a table wider than
+     the screen stretched the card, the card stretched the page, and the whole layout
+     scrolled sideways instead of just the table. Stretch pins the card to the viewport
+     width and leaves the overflow where it belongs, inside .rowgrid-wrap. */
+  .lists-layout { flex-direction: column; gap: 12px; align-items: stretch; }
+  .list-main { width: 100%; max-width: 100%; }
+  .rowgrid-wrap { max-width: 100%; }
   .list-sidebar { width: 100%; padding: 10px; }
   .list-nav {
     width: 100%;
@@ -539,10 +584,13 @@ input.inline-name { width: 100%; }
   .list-nav-btn {
     flex: 0 0 auto;
     white-space: nowrap;
-    background: #f4f4f1;
     padding: 10px 12px;
   }
   .list-nav-btn .cnt { margin-left: 8px; }
+  /* The hint describes dragging, which is a desktop gesture here. The arrows on each
+     entry say what to do on a phone without a sentence explaining it. */
+  .list-drag-hint { display: none; }
+  .list-sidebar { padding: 8px; }
   .list-toolbar { gap: 8px; }
   .list-toolbar .list-search { width: 100%; flex: 1 1 100%; }
   .list-toolbar .btn { flex: 1 1 calc(50% - 4px); }

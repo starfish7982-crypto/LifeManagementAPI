@@ -319,21 +319,45 @@ input:where(
 }
 
 @media (max-width: 768px) {
-  /* The nav is a scrolling row here, so its entries sit side by side and the handle
-     goes above the label rather than beside it — a 44px handle next to a label would
-     leave almost nothing for the name. */
+  /* The nav is a scrolling row here, and each entry stays on one line inside it.
+
+     It used to stack — handle above the label, arrows below — which made every entry
+     about 120px tall and wide enough that only one fitted on screen. A list picker
+     showing one list is not a picker. On one line the whole strip is ~44px tall and
+     two or three lists are visible at once, which is what makes it obvious that it
+     scrolls. */
   .list-nav-item {
     flex: 0 0 auto;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
     gap: 0;
-    align-items: stretch;
-  }
-  .list-nav-item .drag-handle {
-    min-height: 28px;
-    padding: 2px;
+    width: auto;
+    background: #f4f4f1;
+    border-radius: 10px;
+    padding-right: 2px;
   }
   .list-nav-item .list-nav-btn {
+    flex: 0 0 auto;
     min-width: 0;
+    background: transparent;
+    padding: 9px 4px 9px 10px;
+  }
+  /* Narrow, because it shares the line now. Dragging still works; the arrows beside it
+     are the reliable way to reorder inside a container that also scrolls sideways. */
+  .list-nav-item .drag-handle {
+    min-width: 18px;
+    min-height: 36px;
+    padding: 0;
+    font-size: 12px;
+    opacity: 0.5;
+  }
+  .list-nav-controls {
+    flex: 0 0 auto;
+    gap: 0;
+  }
+  .list-nav-item .list-order-button {
+    width: 26px;
+    min-height: 36px;
   }
 }
 
@@ -381,6 +405,13 @@ input:where(
 .rowgrid .cell {
   display: block;
   min-width: 0;
+  /* Containing block for the visually-hidden .cell-label below.
+     Without it the label's nearest positioned ancestor is the page itself, so a label
+     belonging to a column 2000px along a sideways-scrolling table is placed 2000px
+     into the *document* — where it cannot be clipped by the table's scroll container
+     and instead makes the whole page scroll sideways. One absolutely positioned 1px
+     span per cell, and the layout comes apart. */
+  position: relative;
 }
 /* Visible on a phone, where there is no header row to read the column name from.
    Hidden here, where there is — but hidden with a rule that keeps it in the
@@ -438,52 +469,37 @@ input:where(
 }
 
 @media (max-width: 768px) {
-  /* Each row becomes a card: the grid collapses to one column, the column names turn
-     back into visible labels, and the handle and delete button sit on their own line.
-     A seven-column table cannot be made legible at 375px by any amount of squeezing —
-     the only honest options are sideways scrolling, which hides the column you want,
-     or this. */
+  /* The table stays a table and scrolls sideways.
+
+     This used to collapse each row into a card — one field per line, column names
+     turned back into visible labels. That is more readable per field and much worse
+     per list: a ten-row, seven-column list became seventy lines to scroll, and two
+     rows could no longer be compared because they were never on screen together.
+     Comparing rows is what these lists are for.
+
+     `width: max-content` on the grid is what makes it work. Without it each row is a
+     grid sized to the 390px viewport, the minmax minimums overflow it independently,
+     and the header stops lining up with the body. Sized to content, header and rows
+     resolve to the same track widths and the wrapper scrolls them together. */
+  .rowgrid {
+    width: max-content;
+    min-width: 100%;
+  }
   .rowgrid-head {
-    display: none;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
   }
-  .rowgrid-row {
-    grid-template-columns: 1fr auto;
-    gap: 8px 10px;
-    padding: 12px 10px;
-    border: 1px solid var(--grid);
-    border-radius: 10px;
-    margin-bottom: 8px;
-    align-items: start;
+  .rowgrid .cell-value {
+    padding: 8px 4px;
+    font-size: 14px;
   }
-  .rowgrid .cell {
-    grid-column: 1 / -1;
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-  .rowgrid .cell-label {
-    position: static;
-    width: 84px;
-    height: auto;
-    flex-shrink: 0;
-    clip-path: none;
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 600;
-    white-space: normal;
-  }
-  .rowgrid .cell-value { padding: 7px 0; font-size: 15px; }
+  /* Back to a comfortable target now that it is not sharing a line with the fields. */
   .drag-handle {
-    grid-row: 1;
-    grid-column: 1;
-    justify-self: start;
-    min-width: 44px;
-    min-height: 44px;
-    font-size: 18px;
-  }
-  .row-edit-button {
-    grid-row: 1;
-    grid-column: 2;
+    min-width: 28px;
+    min-height: 40px;
+    font-size: 16px;
   }
 }
 
@@ -540,30 +556,20 @@ input:where(
 /* ----------------------------------------------------------------- mobile nav */
 
 @media (max-width: 768px) {
-  /* style.css turns the sidebar into a bottom bar and gives each button `flex: 1`.
-     That divides the width evenly, which is right for five destinations and wrong for
-     nine: on a 375px screen each one gets 41px, and a label like 買菜與食譜 does not
-     fit in 41px at any readable size — it wraps, or it clips.
+  /* All nine destinations fit at once, and 買菜與食譜 wraps to two lines to do it.
 
-     Scrolling instead of shrinking. Every item keeps a legible width and the bar
-     scrolls sideways, which is a gesture people already expect from a row of tabs.
-     The alternative — five items and a "more" menu — hides half the app behind an
-     extra tap to save a scroll. */
+     This used to scroll sideways instead, on the reasoning that 41px is too narrow for
+     that label at a readable size. The reasoning was sound and the outcome was still
+     wrong: what the user saw was six tabs and no indication that three more existed,
+     so Idea, 提醒 and 設定 were effectively unreachable on a phone. A destination you
+     cannot see is worse than one whose label is small.
+
+     Wrapping is what buys the room — the widest label is then 3 characters across, not
+     5. The bar stays a fixed row rather than a scroller, so the tab positions never
+     move and muscle memory works. */
   .sidebar {
-    justify-content: flex-start;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .sidebar::-webkit-scrollbar {
-    display: none;
-  }
-  .nav-btn {
-    flex: 0 0 auto;
-    min-width: 64px;
-  }
-  .nav-btn .nav-lbl {
-    white-space: nowrap;
+    justify-content: space-between;
+    overflow-x: visible;
   }
 
   /* The footer is a column of links inside what is now a horizontal bar. Its contents
