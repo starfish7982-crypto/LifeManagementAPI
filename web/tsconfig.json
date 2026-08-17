@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    /* The settings that make TypeScript worth having. `strict` is the headline, but
+       the three below are the ones that catch real bugs in this codebase:
+       - noUncheckedIndexedAccess: arr[i] is T | undefined, which is the truth, and is
+         exactly the mistake a positional `values[i]` list row invites.
+       - exactOptionalPropertyTypes: `note?: string` stops silently accepting undefined
+         where the API distinguishes "absent" from "null".
+       - noFallthroughCasesInSwitch / noImplicitReturns: cheap, and free of downsides. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["src", "vite.config.ts"]
+}

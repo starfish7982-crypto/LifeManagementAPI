@@ -11,10 +11,20 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import Base, engine
-from app.routers import assets, auth, lists, reminders, today, todos
+from app.routers import assets, auth, grocery, ideas, lists, reminders, today, todos, travel
+
+# Aliased on its own line: `settings` is already the name of the application config
+# object throughout this file, and importing the router under that name would shadow it.
+from app.routers import settings as settings_router
 
 # app/main.py -> app/ -> the project root, which is /srv in the container.
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+#
+# The UI is a Vite build, so what gets served is `web/dist`, not the source in `web/src`.
+# A source checkout that has never run `npm run build` has no dist directory; the mount
+# below is guarded so that degrades to "API only" rather than refusing to start — the
+# test suite and the import script have no use for the UI.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "web" / "dist"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -74,10 +84,14 @@ if get_settings().cors_origin_list:
 
 app.include_router(auth.router)
 app.include_router(assets.router)
+app.include_router(grocery.router)
+app.include_router(ideas.router)
 app.include_router(lists.router)
 app.include_router(reminders.router)
+app.include_router(settings_router.router)
 app.include_router(todos.router)
 app.include_router(today.router)
+app.include_router(travel.router)
 
 
 @app.get("/health", tags=["meta"])
@@ -98,6 +112,37 @@ def root() -> RedirectResponse:
     return RedirectResponse(url="/app/")
 
 
+class HashedAssetStaticFiles(StaticFiles):
+    """Cache built assets forever, and never cache the file that names them.
+
+    Vite writes a content hash into every filename it emits — `index-D4ZkPgJ.js`. A
+    file with that name can never change: change the contents and you get a different
+    name. So it is safe to tell the browser to keep it for a year and not ask again,
+    which is what `immutable` means.
+
+    `index.html` is the opposite. Its whole job is to say which hashed files the
+    current version uses, so a cached copy is how a browser ends up running last
+    week's JavaScript. It gets `no-cache` — which does not mean "do not store" but
+    "store it and ask before reusing", so a revalidation still returns 304 with an
+    empty body when nothing changed.
+
+    This pairing is what makes the deploy safe: one small conditional request finds the
+    new asset names, and everything they point at is either already cached or genuinely
+    new. Before there was a build step, no filename carried a hash and the only
+    available answer was `no-cache` on everything.
+    """
+
+    IMMUTABLE = "public, max-age=31536000, immutable"
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        path = scope.get("path", "")
+        response.headers["Cache-Control"] = (
+            self.IMMUTABLE if "/assets/" in path else "no-cache"
+        )
+        return response
+
+
 # Mounted last. A mount claims every path beneath it, so mounting at /app before the
 # routers were registered would be harmless here, but mounting the UI at "/" would
 # swallow /todos, /docs and the rest. /app keeps the two namespaces from overlapping
@@ -106,6 +151,9 @@ def root() -> RedirectResponse:
 # The directory is absent in a source checkout only if someone deletes it; guarding the
 # mount means a missing frontend degrades to "no UI" instead of refusing to boot the API.
 if FRONTEND_DIR.is_dir():
-    app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
-else:  # pragma: no cover - only reachable with a broken checkout
-    logging.warning("frontend/ not found at %s; serving the API only", FRONTEND_DIR)
+    app.mount("/app", HashedAssetStaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+else:
+    logging.warning(
+        "%s not found; serving the API only. Run `npm run build` in web/ to build the UI.",
+        FRONTEND_DIR,
+    )

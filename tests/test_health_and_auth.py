@@ -31,7 +31,7 @@ def test_protected_route_rejects_garbage_token(unauthenticated_client):
 def test_register_then_login_returns_usable_token(unauthenticated_client):
     r = unauthenticated_client.post(
         "/auth/register",
-        json={"email": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]},
+        json={"username": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]},
     )
     assert r.status_code == 201
     assert "password" not in r.text and "hash" not in r.text
@@ -45,20 +45,20 @@ def test_register_then_login_returns_usable_token(unauthenticated_client):
 
 
 def test_duplicate_registration_is_409(unauthenticated_client):
-    body = {"email": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]}
+    body = {"username": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]}
     assert unauthenticated_client.post("/auth/register", json=body).status_code == 201
     assert unauthenticated_client.post("/auth/register", json=body).status_code == 409
 
 
-def test_email_is_normalised_so_case_cannot_fork_an_account(unauthenticated_client):
+def test_username_is_normalised_so_case_cannot_fork_an_account(unauthenticated_client):
     unauthenticated_client.post(
         "/auth/register",
-        json={"email": "Sally@Example.COM", "password": PRIMARY_USER["password"]},
+        json={"username": "Sally", "password": PRIMARY_USER["password"]},
     )
     # Same account, entered differently.
     r = unauthenticated_client.post(
         "/auth/login",
-        data={"username": "sally@example.com", "password": PRIMARY_USER["password"]},
+        data={"username": "sally", "password": PRIMARY_USER["password"]},
     )
     assert r.status_code == 200
 
@@ -66,7 +66,7 @@ def test_email_is_normalised_so_case_cannot_fork_an_account(unauthenticated_clie
 def test_wrong_password_is_rejected(unauthenticated_client):
     unauthenticated_client.post(
         "/auth/register",
-        json={"email": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]},
+        json={"username": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]},
     )
     r = unauthenticated_client.post(
         "/auth/login",
@@ -76,16 +76,16 @@ def test_wrong_password_is_rejected(unauthenticated_client):
 
 
 def test_login_does_not_reveal_whether_the_account_exists(unauthenticated_client):
-    """A wrong password and an unknown email must be indistinguishable to the caller."""
+    """A wrong password and an unknown username must be indistinguishable to the caller."""
     unauthenticated_client.post(
         "/auth/register",
-        json={"email": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]},
+        json={"username": PRIMARY_USER["username"], "password": PRIMARY_USER["password"]},
     )
     known = unauthenticated_client.post(
         "/auth/login", data={"username": PRIMARY_USER["username"], "password": "wrong"}
     )
     unknown = unauthenticated_client.post(
-        "/auth/login", data={"username": "nobody@example.com", "password": "wrong"}
+        "/auth/login", data={"username": "nobody", "password": "wrong"}
     )
     assert known.status_code == unknown.status_code == 401
     assert known.json() == unknown.json()
@@ -93,7 +93,7 @@ def test_login_does_not_reveal_whether_the_account_exists(unauthenticated_client
 
 def test_short_password_is_rejected(unauthenticated_client):
     r = unauthenticated_client.post(
-        "/auth/register", json={"email": "x@example.com", "password": "short"}
+        "/auth/register", json={"username": "valid-user", "password": "short"}
     )
     assert r.status_code == 422
 
@@ -161,10 +161,10 @@ def test_token_for_a_deleted_user_is_rejected(unauthenticated_client):
 def test_me_returns_the_signed_in_account(client):
     r = client.get("/auth/me")
     assert r.status_code == 200
-    assert r.json()["email"] == PRIMARY_USER["username"]
+    assert r.json()["username"] == PRIMARY_USER["username"]
     assert "password_hash" not in r.json()
 
 
 def test_two_accounts_get_different_identities(client, other_client):
-    assert client.get("/auth/me").json()["email"] == PRIMARY_USER["username"]
-    assert other_client.get("/auth/me").json()["email"] == OTHER_USER["username"]
+    assert client.get("/auth/me").json()["username"] == PRIMARY_USER["username"]
+    assert other_client.get("/auth/me").json()["username"] == OTHER_USER["username"]

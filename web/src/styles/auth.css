@@ -1,0 +1,606 @@
+/* The sign-in screen, and the handful of controls the original stylesheet has no
+   equivalent for. Everything else comes from style.css, which is carried over
+   unchanged — so this file deliberately does not restate buttons, inputs, or layout.
+   It used to, and the duplicates quietly beat style.css's own mobile rules. */
+
+/* The `hidden` attribute only hides an element because the UA stylesheet says
+   `[hidden] { display: none }` — and that rule loses to any author rule that sets
+   `display`. Both containers this app toggles have one, so `el.hidden = true` set the
+   attribute and changed nothing on screen: the full-viewport sign-in card simply
+   stayed on top of the app. This puts the attribute back in charge, and is the one
+   place !important earns its keep — the whole point is to beat a more specific rule. */
+[hidden] {
+  display: none !important;
+}
+
+/* ----------------------------------------------------------------- text inputs */
+
+/* style.css styles inputs by listing the types it knows about — text, url, number,
+   date, month. Two things fall through that list, and both have shown up as "why does
+   this box look wrong":
+
+     - Types it never heard of: email, password, search.
+     - Inputs with no `type` attribute at all. An attribute selector matches the
+       attribute, not the effective value, so `input[type="text"]` does not select
+       `<input name="license_plate">` even though the browser treats it as text. That
+       is most of the inputs in this app.
+
+   Selecting by exclusion instead. `:where()` contributes nothing to specificity, so
+   this whole selector weighs the same as a bare `input` — style.css's own rules still
+   win where they apply, including its mobile overrides, and this only fills the gaps.
+   Anything genuinely not a text box is excluded by name. */
+input:where(
+    :not(
+        [type="checkbox"],
+        [type="radio"],
+        [type="button"],
+        [type="submit"],
+        [type="reset"],
+        [type="file"],
+        [type="range"],
+        [type="color"],
+        [type="image"]
+      )
+  ) {
+  font: inherit;
+  color: var(--ink);
+  border: 1px solid var(--baseline);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #fff;
+  width: 100%;
+  min-height: 36px;
+}
+
+input:where(
+    :not(
+        [type="checkbox"],
+        [type="radio"],
+        [type="button"],
+        [type="submit"],
+        [type="reset"],
+        [type="file"],
+        [type="range"],
+        [type="color"],
+        [type="image"]
+      )
+  ):focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+@media (max-width: 768px) {
+  /* 16px is the threshold below which iOS Safari zooms the page on focus. style.css
+     has the same rule for the types it lists; this extends it to the rest. */
+  input:where(
+      :not(
+          [type="checkbox"],
+          [type="radio"],
+          [type="button"],
+          [type="submit"],
+          [type="reset"],
+          [type="file"],
+          [type="range"],
+          [type="color"],
+          [type="image"]
+        )
+    ) {
+    font-size: 16px;
+    padding: 10px 12px;
+    min-height: 42px;
+  }
+}
+
+/* --------------------------------------------------------------- sign-in screen */
+
+.auth-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--page);
+}
+
+.auth-card {
+  width: 380px;
+  max-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 28px 26px;
+}
+
+.auth-brand {
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.auth-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.auth-submit {
+  display: flex;
+  width: min(100%, 180px);
+  margin: 6px auto 0;
+}
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ---------------------------------------------------------------- button sizing */
+
+/* Buttons sitting in the same row are the same height, always.
+ *
+ * The list toolbar had three: a filled `.btn` at 36px next to a `.btn.small` at 30px
+ * next to a `.btn.danger` with different padding again. Mixed heights in one row read
+ * as a mistake rather than as a hierarchy, and hierarchy is not what height is for —
+ * that is what fill and colour do. So a row normalises its children, and `.small`
+ * keeps its meaning only where it is genuinely alone in dense content.
+ */
+.btn-row > .btn,
+.list-toolbar > .btn,
+.card-head-row .btn {
+  min-height: 36px;
+  padding: 7px 14px;
+  font-size: 13.5px;
+}
+
+/* Icon-only controls are square rather than wide, so a lone × does not sit in a
+   button three times the width of its glyph. */
+.btn.icon {
+  min-width: 36px;
+  padding: 7px 0;
+  font-size: 15px;
+  line-height: 1;
+}
+
+@media (max-width: 768px) {
+  .btn-row > .btn,
+  .list-toolbar > .btn,
+  .card-head-row .btn {
+    min-height: 42px;
+    padding: 10px 14px;
+    font-size: 14.5px;
+  }
+  .btn.icon {
+    min-width: 42px;
+    padding: 10px 0;
+  }
+}
+
+.auth-error {
+  background: #fdecec;
+  border: 1px solid rgba(208, 59, 59, 0.3);
+  color: var(--bad);
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.auth-toggle {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-align: center;
+}
+.auth-lang {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+/* ------------------------------------------------------------------ shell extras */
+
+.linklike {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* The footer sits inside the dark sidebar, so its links need light text — the shared
+   .linklike colour is tuned for the light content area. */
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.sidebar-footer .linklike {
+  color: #9fb3a8;
+  font-size: 11.5px;
+}
+.sidebar-footer .linklike:hover {
+  color: #fff;
+}
+.signed-in-as {
+  font-size: 11.5px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+/* ------------------------------------------------------------------ view states */
+
+/* Shown before the first response only. Deliberately plain and wordy: the free tier
+   cold-starts for the better part of a minute, and a spinner that gives no reason
+   reads as a hang. */
+.loading {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 24px 0;
+}
+
+/* A refetch behind data that is already on screen. Quiet on purpose — it should be
+   findable if you look for it and invisible if you are not. */
+.refreshing {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  padding-top: 6px;
+}
+
+.error-note {
+  background: #fdecec;
+  border: 1px solid rgba(208, 59, 59, 0.3);
+  color: var(--bad);
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin: 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------------- list nav */
+
+/* Each entry is a handle plus a button, rather than one button with a handle inside.
+   A button nested in a button is invalid HTML and browsers recover from it in ways
+   that break the inner one's click. */
+.list-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+.list-nav-item .list-nav-btn {
+  flex: 1;
+  min-width: 0;
+}
+.list-nav-controls {
+  flex: 0 0 46px;
+  display: flex;
+  justify-content: space-between;
+  padding-right: 2px;
+}
+.list-order-button {
+  all: unset;
+  cursor: pointer;
+  width: 22px;
+  min-height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border-radius: 5px;
+}
+.list-order-button:hover:not(:disabled) {
+  color: var(--ink);
+  background: #f1f1ee;
+}
+.list-order-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+.list-order-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.list-nav-item.dragging {
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 768px) {
+  /* The nav is a scrolling row here, so its entries sit side by side and the handle
+     goes above the label rather than beside it — a 44px handle next to a label would
+     leave almost nothing for the name. */
+  .list-nav-item {
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 0;
+    align-items: stretch;
+  }
+  .list-nav-item .drag-handle {
+    min-height: 28px;
+    padding: 2px;
+  }
+  .list-nav-item .list-nav-btn {
+    min-width: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ list rows */
+
+/* A grid, not a table, so the same markup can be columns on a desktop and cards on a
+   phone. `--cols` is set per list from its own column count. */
+.rowgrid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.rowgrid {
+  min-width: 100%;
+}
+
+.rowgrid-head,
+.rowgrid-row {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  gap: 6px;
+}
+
+.rowgrid-head {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--grid);
+}
+
+.rowgrid-row {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--grid);
+  background: var(--surface);
+}
+.rowgrid-row:last-child {
+  border-bottom: none;
+}
+.rowgrid-row.dragging {
+  box-shadow: var(--shadow);
+  border-radius: 8px;
+}
+
+.rowgrid .cell {
+  display: block;
+  min-width: 0;
+}
+/* Visible on a phone, where there is no header row to read the column name from.
+   Hidden here, where there is — but hidden with a rule that keeps it in the
+   accessibility tree, so it is still announced. */
+.rowgrid .cell-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rowgrid .cell-value {
+  display: block;
+  min-width: 0;
+  padding: 8px 4px;
+  line-height: 1.48;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.rowgrid .cell-value.empty { color: var(--muted); }
+.row-edit-button {
+  all: unset; cursor: pointer; color: var(--muted); text-align: center; border-radius: 6px;
+  padding: 5px; line-height: 1; font-size: 15px;
+}
+.row-edit-button:hover, .row-edit-button:focus-visible { color: var(--accent); background: var(--accent-soft); }
+
+.drag-handle {
+  all: unset;
+  cursor: grab;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+  padding: 8px 4px;
+  border-radius: 6px;
+  /* A pointer target smaller than this is a coin toss with a thumb. */
+  min-width: 28px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.drag-handle:hover {
+  background: #f1f1ee;
+  color: var(--ink-2);
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.drag-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 768px) {
+  /* Each row becomes a card: the grid collapses to one column, the column names turn
+     back into visible labels, and the handle and delete button sit on their own line.
+     A seven-column table cannot be made legible at 375px by any amount of squeezing —
+     the only honest options are sideways scrolling, which hides the column you want,
+     or this. */
+  .rowgrid-head {
+    display: none;
+  }
+  .rowgrid-row {
+    grid-template-columns: 1fr auto;
+    gap: 8px 10px;
+    padding: 12px 10px;
+    border: 1px solid var(--grid);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    align-items: start;
+  }
+  .rowgrid .cell {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .rowgrid .cell-label {
+    position: static;
+    width: 84px;
+    height: auto;
+    flex-shrink: 0;
+    clip-path: none;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+    white-space: normal;
+  }
+  .rowgrid .cell-value { padding: 7px 0; font-size: 15px; }
+  .drag-handle {
+    grid-row: 1;
+    grid-column: 1;
+    justify-self: start;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+  .row-edit-button {
+    grid-row: 1;
+    grid-column: 2;
+  }
+}
+
+/* ------------------------------------------------------------------ table cells */
+
+/* List rows are edited in place, so their inputs read as text until you reach for
+   them. The asset rows use style.css's .inline-name / .inline-amount instead, which
+   look like fields — a number you are about to change should look editable. */
+.list-table input {
+  width: 100%;
+  padding: 5px 7px;
+  font: inherit;
+  font-size: 13px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+}
+.list-table input:hover {
+  border-color: var(--border);
+}
+.list-table input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.muted {
+  color: var(--muted);
+}
+.todo-note {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.cnt {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keyboard users need to see where they are. The browser default outline is removed
+   by `all: unset` on .btn and .nav-btn, so it has to be put back deliberately. */
+.btn:focus-visible,
+.nav-btn:focus-visible,
+.list-nav-btn:focus-visible,
+.lang-btn:focus-visible,
+.linklike:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.nav-btn:focus-visible {
+  outline-color: #fff;
+}
+
+/* ----------------------------------------------------------------- mobile nav */
+
+@media (max-width: 768px) {
+  /* style.css turns the sidebar into a bottom bar and gives each button `flex: 1`.
+     That divides the width evenly, which is right for five destinations and wrong for
+     nine: on a 375px screen each one gets 41px, and a label like 買菜與食譜 does not
+     fit in 41px at any readable size — it wraps, or it clips.
+
+     Scrolling instead of shrinking. Every item keeps a legible width and the bar
+     scrolls sideways, which is a gesture people already expect from a row of tabs.
+     The alternative — five items and a "more" menu — hides half the app behind an
+     extra tap to save a scroll. */
+  .sidebar {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .sidebar::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-btn {
+    flex: 0 0 auto;
+    min-width: 64px;
+  }
+  .nav-btn .nav-lbl {
+    white-space: nowrap;
+  }
+
+  /* The footer is a column of links inside what is now a horizontal bar. Its contents
+     move to the top header on a phone; see App.tsx. */
+  .sidebar-footer {
+    display: none;
+  }
+
+  .mobile-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .mobile-account {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .mobile-account .linklike {
+    color: #9fb3a8;
+    font-size: 11.5px;
+  }
+}
+
+/* Hidden above the mobile breakpoint, where the sidebar footer holds these instead. */
+.mobile-account {
+  display: none;
+}
+
+/* Respect a reduced-motion preference. The only transition here is the goal bar, but
+   the rule is cheap and the alternative is an accessibility bug nobody reports. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

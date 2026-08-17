@@ -28,6 +28,10 @@ dependencies = [
     # Schema migrations. create_all() cannot alter an existing table, which is exactly
     # what adding user_id to live tables requires.
     "alembic>=1.13",
+    # Receipt OCR. The application falls back to a review-only upload when the
+    # Tesseract binary is not present, while the Docker image installs it below.
+    "pillow>=10.0",
+    "pytesseract>=0.3.13",
 ]
 
 [project.optional-dependencies]

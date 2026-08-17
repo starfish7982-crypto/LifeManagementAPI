@@ -2,8 +2,8 @@
 
 Login takes form-encoded credentials rather than JSON because that is what the OAuth2
 password flow specifies, and following it is what makes the Authorize button in /docs
-work without custom JavaScript. The field is named `username` for the same reason; it
-carries an email here.
+work without custom JavaScript. The field is named `username` by the standard and it
+also carries the application's account name.
 """
 
 from __future__ import annotations
@@ -30,15 +30,15 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
-    existing = db.scalar(select(User).where(User.email == payload.email))
+    existing = db.scalar(select(User).where(User.username == payload.username))
     if existing is not None:
         # This does leak that the address is registered. Every alternative leaks it
         # somewhere else (the password-reset flow, or a login that now succeeds), and
         # a signup form that cannot say "you already have an account" is a worse
         # product for a real cost that is close to zero here.
-        raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Username already registered")
 
-    user = User(email=payload.email, password_hash=hash_password(payload.password))
+    user = User(username=payload.username, password_hash=hash_password(payload.password))
     db.add(user)
     db.commit()
     db.refresh(user)

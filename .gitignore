@@ -14,3 +14,11 @@ htmlcov/
 # personal notes, not for the public repo
 SELF_CHECK.md
 *.egg-info/
+
+# Frontend build artefacts. package-lock.json is NOT ignored: it is what makes
+# `npm ci` reproducible, and a lockfile that only exists on one machine is no lockfile.
+web/node_modules/
+web/dist/
+
+# Scratch directory used when staging the tree for an out-of-band build check.
+.deploytmp/

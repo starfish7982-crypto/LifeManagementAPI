@@ -1,5 +1,9 @@
+from datetime import date, time
+
+from app.dependencies import get_calendar_client
+from app.main import app
 from app.routers.today import _format_summary
-from app.schemas import TodayOut
+from app.schemas import CalendarEvent, TodayOut
 
 
 def test_today_combines_todos_and_reminders(client):
@@ -20,6 +24,29 @@ def test_today_excludes_completed_todos(client):
     client.patch(f"/todos/{created['id']}", json={"done": True})
 
     assert client.get("/today?day=2026-03-02").json()["todos"] == []
+
+
+def test_today_imports_calendar_activity_as_one_checkable_todo(client):
+    class CalendarWithOneActivity:
+        async def events_between(self, *_args, **_kwargs):
+            return [
+                CalendarEvent(
+                    uid="team-lunch",
+                    title="Team lunch",
+                    starts_at=date(2026, 3, 2),
+                    starts_time=time(12, 30),
+                    all_day=False,
+                )
+            ]
+
+    app.dependency_overrides[get_calendar_client] = lambda: CalendarWithOneActivity()
+    first = client.get("/today?day=2026-03-02").json()
+    second = client.get("/today?day=2026-03-02").json()
+
+    assert [(todo["title"], todo["source"], todo["calendar_time"]) for todo in first["todos"]] == [
+        ("Team lunch", "calendar", "12:30:00")
+    ]
+    assert len(second["todos"]) == 1
 
 
 def test_today_excludes_reminders_not_due_on_that_day(client):
@@ -50,6 +77,8 @@ def test_summary_escapes_html_in_titles():
                     "title": "<b>rent</b> & fees",
                     "due_date": None,
                     "done": False,
+                    "bucket": "today",
+                    "position": 0,
                     "source": "manual",
                     "created_at": "2026-03-02T00:00:00Z",
                 }

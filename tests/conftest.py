@@ -22,8 +22,8 @@ from app.database import Base, get_db
 from app.main import app
 
 TEST_JWT_SECRET = "test-secret-not-used-anywhere-real"
-PRIMARY_USER = {"username": "sally@example.com", "password": "correct-horse-battery"}
-OTHER_USER = {"username": "mallory@example.com", "password": "another-password-42"}
+PRIMARY_USER = {"username": "sally", "password": "correct-horse-battery"}
+OTHER_USER = {"username": "mallory", "password": "another-password-42"}
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def register_and_login(client: TestClient, credentials: dict) -> str:
     """Create an account and return its bearer token."""
     r = client.post(
         "/auth/register",
-        json={"email": credentials["username"], "password": credentials["password"]},
+        json={"username": credentials["username"], "password": credentials["password"]},
     )
     assert r.status_code == 201, r.text
     r = client.post("/auth/login", data=credentials)

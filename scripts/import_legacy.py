@@ -96,9 +96,9 @@ class Client:
         Safe to call when the account already exists: the API answers 409, which is
         treated as "fine, carry on and log in".
         """
-        r = self.http.post(
-            f"{self.base}/auth/register", json={"email": email, "password": password}
-        )
+        # Through _request, not self.http directly: this is the first call the script
+        # makes, so it is the one most likely to meet a host that is still waking up.
+        r = self._request("POST", "/auth/register", json={"email": email, "password": password})
         if r.status_code == 201:
             return True
         if r.status_code == 409:
@@ -106,9 +106,7 @@ class Client:
         raise ImportError_(f"Could not register {email} ({r.status_code}): {r.text}")
 
     def login(self, email: str, password: str) -> None:
-        r = self.http.post(
-            f"{self.base}/auth/login", data={"username": email, "password": password}
-        )
+        r = self._request("POST", "/auth/login", data={"username": email, "password": password})
         if r.status_code == 401:
             # The API will not say whether the address is registered — that would make
             # /auth/login an account-enumeration oracle. Correct for the API, unhelpful
@@ -359,6 +357,127 @@ def import_lists(c: Client, data: dict) -> None:
             print(f"  + {icon} {name} ({width} columns, {added} rows)")
 
 
+def import_ideas(c: Client, data: dict) -> None:
+    ideas = data.get("ideas", [])
+    print(f"\nIdeas: {len(ideas)}")
+
+    existing = {i["text"] for i in c.get("/ideas")} if not c.dry_run else set()
+
+    for idea in ideas:
+        text = (idea.get("text") or "").strip()
+        if not text:
+            continue
+        if text in existing:
+            print(f"  = {text[:40]} already imported, skipping")
+            continue
+        c.send("POST", "/ideas", {"text": text[:500], "note": idea.get("note") or None})
+        print(f"  + {text[:50]}")
+
+
+def import_grocery(c: Client, data: dict) -> None:
+    shopping = data.get("shopping", [])
+    recipes = data.get("recipes", [])
+    print(f"\nGrocery: {len(shopping)} shopping items, {len(recipes)} recipes")
+
+    if not c.dry_run:
+        have_items = {i["text"] for i in c.get("/grocery/shopping")}
+        have_recipes = {r["name"] for r in c.get("/grocery/recipes")}
+    else:
+        have_items, have_recipes = set(), set()
+
+    for item in shopping:
+        # The old file stores either a bare string or an object, depending on when the
+        # row was written. Accept both rather than lose the older ones.
+        text = item if isinstance(item, str) else (item.get("text") or item.get("name") or "")
+        text = str(text).strip()
+        if not text or text in have_items:
+            continue
+        quantity = None if isinstance(item, str) else item.get("qty") or item.get("quantity")
+        done = False if isinstance(item, str) else bool(item.get("done"))
+        c.send(
+            "POST",
+            "/grocery/shopping",
+            {"text": text[:200], "quantity": (quantity or None), "done": done},
+        )
+        print(f"  + [shopping] {text[:40]}")
+
+    for recipe in recipes:
+        name = (recipe.get("name") or "").strip()
+        if not name:
+            continue
+        if name in have_recipes:
+            print(f"  = {name[:40]} already imported, skipping")
+            continue
+        url = (recipe.get("videoUrl") or "").strip()
+        if url and not url.startswith(("http://", "https://")):
+            # The API rejects anything that is not http(s); dropping the value beats
+            # failing the whole import over a malformed link.
+            print(f"    ! {name[:30]}: dropping non-http video link")
+            url = ""
+        c.send(
+            "POST",
+            "/grocery/recipes",
+            {
+                "name": name[:200],
+                "ingredients": recipe.get("ingredients") or None,
+                "steps": recipe.get("steps") or None,
+                "temp": recipe.get("temp") or None,
+                "video_url": url or None,
+            },
+        )
+        print(f"  + [recipe] {name[:40]}")
+
+
+def import_travel(c: Client, data: dict) -> None:
+    if not data:
+        return
+    hotels = data.get("hotels", [])
+    checklist = data.get("checklist", [])
+    print(f"\nTravel: {len(hotels)} lodgings, {len(checklist)} packing items")
+
+    c.send(
+        "PUT",
+        "/travel",
+        {
+            "start_date": data.get("startDate") or None,
+            "end_date": data.get("endDate") or None,
+            "license_plate": data.get("licensePlate") or None,
+        },
+    )
+    print(f"  set trip: {data.get('startDate')} → {data.get('endDate')}")
+
+    if not c.dry_run:
+        trip = c.get("/travel") or {}
+        have_lodgings = {x["name"] for x in trip.get("lodgings", [])}
+        have_packing = {x["text"] for x in trip.get("packing", [])}
+    else:
+        have_lodgings, have_packing = set(), set()
+
+    for hotel in hotels:
+        name = (hotel.get("name") or "").strip()
+        if not name or name in have_lodgings:
+            continue
+        c.send(
+            "POST",
+            "/travel/lodgings",
+            {
+                "name": name[:300],
+                "check_in": hotel.get("checkIn") or None,
+                "check_out": hotel.get("checkOut") or None,
+                "details": hotel.get("details") or None,
+            },
+        )
+        print(f"  + [lodging] {name[:44]}")
+
+    for entry in checklist:
+        text = entry if isinstance(entry, str) else (entry.get("text") or "")
+        text = str(text).strip()
+        if not text or text in have_packing:
+            continue
+        c.send("POST", "/travel/packing", {"text": text[:200]})
+        print(f"  + [packing] {text[:40]}")
+
+
 # ----------------------------------------------------------------------------- main
 
 
@@ -408,6 +527,9 @@ def main() -> int:
         import_reminders(client, load(args.data_dir, "reminders.json"))
         import_todos(client, load(args.data_dir, "todos.json"))
         import_lists(client, load(args.data_dir, "lists.json"))
+        import_ideas(client, load(args.data_dir, "ideas.json"))
+        import_grocery(client, load(args.data_dir, "grocery.json"))
+        import_travel(client, load(args.data_dir, "travel.json"))
     except ImportError_ as exc:
         print(f"\nImport failed: {exc}", file=sys.stderr)
         return 1

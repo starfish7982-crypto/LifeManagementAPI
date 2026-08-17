@@ -13,7 +13,7 @@ Decisions worth defending:
     is also a sharp edge Argon2 does not have. `PasswordHash.recommended()` tracks the
     current best choice so this file does not have to.
 
-  * **The hash is verified even when the email is unknown.** Returning early on a
+  * **The hash is verified even when the username is unknown.** Returning early on a
     missing account makes login measurably faster for non-existent emails, which turns
     the endpoint into an account-enumeration oracle. The dummy verify keeps both paths
     on the same order of magnitude.
@@ -21,7 +21,7 @@ Decisions worth defending:
   * **Login failures do not say which half was wrong.** "No such user" is the same
     information leak spelled out in words.
 
-  * **`sub` is the user id, not the email.** Emails change; the token should not stop
+  * **`sub` is the user id, not the username.** Account names change; the token should not stop
     identifying its subject when one does.
 """
 
@@ -46,13 +46,13 @@ _hasher = PasswordHash.recommended()
 _bearer = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 # Verified against on the "user not found" path so that timing does not distinguish an
-# unknown email from a wrong password. The plaintext behind it is irrelevant and no
+# unknown username from a wrong password. The plaintext behind it is irrelevant and no
 # account uses it; what matters is that verifying it costs what a real verify costs.
 _DUMMY_HASH = _hasher.hash("timing-equalisation-placeholder")
 
 _CREDENTIALS_ERROR = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Incorrect email or password",
+    detail="Incorrect username or password",
     headers={"WWW-Authenticate": "Bearer"},
 )
 
@@ -65,9 +65,9 @@ def verify_password(plain: str, hashed: str) -> bool:
     return _hasher.verify(plain, hashed)
 
 
-def authenticate(db: Session, email: str, password: str) -> User:
+def authenticate(db: Session, username: str, password: str) -> User:
     """Return the user for these credentials, or raise 401 without saying which half failed."""
-    user = db.scalar(select(User).where(User.email == email.strip().lower()))
+    user = db.scalar(select(User).where(User.username == username.strip().lower()))
     if user is None:
         verify_password(password, _DUMMY_HASH)
         raise _CREDENTIALS_ERROR

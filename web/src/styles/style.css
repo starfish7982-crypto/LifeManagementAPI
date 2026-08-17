@@ -163,12 +163,30 @@ input.inline-name { width: 100%; }
 .card-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .goal-mini { width: 180px; display: flex; flex-direction: column; gap: 4px; }
 .goal-mini-title { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+.goal-summary {
+  all: unset; display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+}
+.goal-summary span {
+  display: block; border: 1px solid var(--baseline); border-radius: 7px;
+  padding: 5px 8px; font-size: 12px; color: var(--ink); line-height: 1.2;
+}
+.goal-summary span:first-child { text-align: right; font-variant-numeric: tabular-nums; }
+.goal-summary .goal-next-step { white-space: pre-line; }
+.goal-summary:hover span { border-color: var(--accent); }
+.goal-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 7px; }
 .goal-mini input { padding: 4px 8px; font-size: 12.5px; }
 .goal-mini input[type="number"] { text-align: right; font-variant-numeric: tabular-nums; }
 .goal-progress { margin-top: 2px; }
 .goal-bar { height: 6px; background: #e1e0d9; border-radius: 3px; overflow: hidden; }
 .goal-fill { height: 100%; background: #1baf7a; border-radius: 3px; transition: width .3s; }
 .goal-stats { margin-top: 3px; font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+/* dashboard */
+.dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr); gap: 16px; }
+.dashboard-net-worth-card, .dashboard-reminders-card { min-height: 510px; }
+.dashboard-reminders-card .due-item { padding: 10px 0; }
+.manage-reminders { margin-top: 12px; }
+.dashboard-trend-card { margin-top: 16px; }
 
 .shop-add { display: flex; gap: 8px; margin-bottom: 12px; }
 .shop-add input:first-child { flex: 1; }
@@ -177,15 +195,115 @@ input.inline-name { width: 100%; }
 .recipe-name { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
 .recipe-preview { font-size: 12.5px; color: var(--ink-2); margin-bottom: 2px; }
 
-.cat-block { margin-bottom: 18px; }
+/* groceries and recipes */
+.grocery-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.grocery-shopping-card, .grocery-recipes-card { min-height: 560px; }
+.grocery-add { align-items: stretch; }
+.grocery-quantity { width: 90px !important; flex: 0 0 90px; }
+.grocery-clear-actions { margin-top: 12px; }
+.grocery-new-recipe { margin: 2px 0 12px; }
+.grocery-recipe-list { display: flex; flex-direction: column; gap: 8px; }
+.grocery-recipe-list .recipe-card { margin: 0; }
+.grocery-recipe-list .recipe-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.meal-ideas-card { margin-top: 16px; }
+.meal-ideas-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.meal-ideas-tools { display: flex; gap: 8px; align-items: center; margin: 6px 0 12px; }
+.meal-ideas-search { width: 220px; }
+.meal-ideas-category-filter { width: 160px; }
+.meal-ideas-table { overflow-x: auto; }
+.meal-ideas-row { display: grid; grid-template-columns: minmax(160px, .7fr) minmax(260px, 1fr) minmax(120px, .3fr) 34px; align-items: center; gap: 12px; min-width: 620px; padding: 10px; border-bottom: 1px solid var(--grid); }
+.meal-ideas-row:last-child { border-bottom: none; }
+.meal-ideas-table-head { color: var(--muted); font-size: 12px; font-weight: 600; padding-top: 6px; }
+.meal-idea-edit { all: unset; cursor: pointer; color: var(--muted); text-align: center; border-radius: 5px; padding: 2px; }
+.meal-idea-edit:hover, .meal-idea-edit:focus-visible { color: var(--accent); background: var(--accent-soft); }
+.idea-card {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; width: 100%; padding: 12px 10px; border: 1px solid var(--grid);
+  border-radius: 10px; background: #fff; text-align: left;
+}
+.idea-card:hover, .idea-card:focus-visible { background: #f4f4f1; }
+.idea-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reminders-add { margin-bottom: 16px; }
+.reminders-table { overflow-x: auto; }
+.reminders-table-head, .reminder-row { display: grid; grid-template-columns: 110px minmax(280px, 1fr) 145px 135px 105px 30px; align-items: center; gap: 10px; min-width: 780px; }
+.reminders-table-head { padding: 6px 10px 9px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.reminder-row { padding: 9px 10px; border-top: 1px solid var(--grid); cursor: pointer; }
+.reminder-row > .badge { justify-self: start; }
+.reminder-row:hover { background: #f8f8f6; }
+.reminder-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.reminder-row.inactive { opacity: .55; }
+.reminder-main { min-width: 0; }
+.reminder-date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.reminder-edit { all: unset; cursor: pointer; color: var(--muted); text-align: center; border-radius: 5px; padding: 3px; }
+.reminder-edit:hover, .reminder-edit:focus-visible { color: var(--accent); background: var(--accent-soft); }
+.settings-card { margin-top: 16px; }
+.settings-card:first-of-type { margin-top: 0; }
+.settings-guide-copy { line-height: 1.55; }
+.settings-guide-copy p { margin: 0 0 7px; }
+.settings-guide-copy p:last-child { margin-bottom: 0; }
+.settings-command { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; color: var(--ink-2); }
+.modal-actions-leading, .modal-actions-primary { display: flex; align-items: center; gap: 8px; }
+.modal-actions-leading { margin-right: auto; }
+
+/* travel */
+.travel-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.travel-info-card, .travel-packing-card { min-height: 620px; }
+.travel-date-fields, .lodging-date-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.travel-lodgings-head { margin-top: 22px; }
+.travel-lodging-card, .travel-benefit-card { display: flex; align-items: flex-start; gap: 10px; padding: 12px 10px; margin-bottom: 8px; border: 1px solid var(--grid); border-radius: 10px; }
+.travel-lodging-card .todo-body, .travel-benefit-card .todo-body { flex: 1; min-width: 0; }
+.travel-lodging-card .todo-title, .travel-lodging-card .todo-note, .travel-lodging-card .travel-map-link {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.travel-map-link { display: inline-block; margin-top: 4px; color: var(--accent); font-size: 12.5px; line-height: 1.45; }
+.travel-benefit-row { display: flex; align-items: center; gap: 10px; }
+.travel-benefit-card {
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  flex: 1; min-width: 0; margin-bottom: 0;
+  padding: 12px 10px; border: 1px solid var(--grid); border-radius: 10px;
+  background: #fff;
+}
+.travel-benefit-card:hover { background: #f4f4f1; }
+.travel-benefit-row > .btn.danger { flex: 0 0 32px; }
+.travel-packing-card .todo-item { align-items: center; }
+.travel-packing-card .todo-item .todo-body { min-height: 22px; justify-content: center; }
+.travel-packing-card .todo-item .btn.danger { flex: 0 0 32px; margin-left: auto; }
+.travel-save { margin-top: 4px; }
+.travel-benefits-card { margin-top: 16px; }
+.travel-benefits-card .card-head-row { margin-bottom: 12px; }
+.travel-benefits-card .card-head-row > .btn { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
+.travel-benefit-card + .travel-benefit-card { border-top: 1px solid var(--grid); border-radius: 0; }
+.travel-expenses-card { margin-top: 16px; }
+.travel-expenses-head { margin-bottom: 12px; }
+.travel-expense-total { color: var(--ink-2); font-size: 12.5px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.receipt-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.travel-expense-list { display: flex; flex-direction: column; gap: 8px; }
+.travel-expense-row {
+  all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: flex; gap: 12px;
+  align-items: center; padding: 11px 12px; border: 1px solid var(--grid); border-radius: 10px; background: #fff; text-align: left;
+}
+.travel-expense-row:hover, .travel-expense-row:focus-visible { background: #f4f4f1; }
+.travel-expense-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.travel-expense-amount { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.receipt-review { margin: -4px 0 14px; padding: 8px 10px; border-radius: 8px; background: var(--warn-bg); color: #6f4b09; font-size: 12.5px; }
+.receipt-attached-note { color: var(--muted); font-size: 12.5px; margin-top: -2px; }
+
+.cat-block { margin-bottom: 20px; }
 .cat-head {
   display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px; background: #f4f4f1; border-radius: 8px; margin-bottom: 4px;
+  padding: 10px; background: #f4f4f1; border-radius: 8px; margin-bottom: 6px;
 }
 .cat-head .cat-name { font-weight: 700; font-size: 13.5px; flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cat-head .cat-sum { font-variant-numeric: tabular-nums; font-weight: 700; }
 .asset-row { display: flex; gap: 8px; align-items: center; padding: 4px 10px; }
 .asset-row:hover { background: #fafaf8; border-radius: 6px; }
+.asset-add-item { margin: 4px 10px 0; }
+.asset-total { margin: 22px 0 14px; background: #eaf3ff; }
+.assets-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.assets-month-select { width: 160px; flex: 0 1 190px; }
+.assets-add-month { white-space: nowrap; }
 
 .badge {
   display: inline-block; font-size: 11.5px; font-weight: 700;
@@ -199,18 +317,26 @@ input.inline-name { width: 100%; }
 .freq-tag { font-size: 11.5px; color: var(--muted); }
 
 .lists-layout { display: flex; gap: 18px; align-items: flex-start; }
-.list-nav { width: 215px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+.list-sidebar { width: max-content; min-width: 215px; flex-shrink: 0; padding: 12px; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); background: var(--surface); }
+.list-drag-hint { margin: 0 0 8px; color: var(--muted); font-size: 11.5px; }
+.list-nav { width: max-content; display: flex; flex-direction: column; gap: 4px; }
 .list-nav-btn {
   all: unset; cursor: pointer; padding: 8px 12px; border-radius: 8px;
   font-size: 13.5px; color: var(--ink-2); display: flex; gap: 8px; align-items: center;
   min-height: 40px;
 }
+.list-nav-icon { flex: 0 0 auto; }
+.list-nav-label { flex: 0 0 auto; white-space: nowrap; }
 .list-nav-btn:hover { background: #f1f1ee; }
 .list-nav-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 .list-nav-btn .cnt { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+.list-new-button { all: unset; cursor: pointer; color: var(--accent); font-size: 13px; font-weight: 600; padding: 12px 8px 2px; }
+.list-new-button:hover { text-decoration: underline; }
 .list-main { flex: 1; min-width: 0; }
 .list-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
-.list-toolbar input[type="text"] { width: 220px; }
+.list-toolbar .list-search { width: 220px; }
+.list-count { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.list-delete-button { margin-top: 2px; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 #modal-root:empty { display: none; }
@@ -250,6 +376,19 @@ input.inline-name { width: 100%; }
 .due-item .d { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 
 /* today todos */
+.calendar-refresh { margin-bottom: 0; }
+.todo-reorder-help { margin: 8px 0 10px; color: var(--muted); font-size: 12px; }
+.todo-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.todo-lane { min-width: 0; padding: 10px; border: 1px solid var(--grid); border-radius: 12px; background: #fcfcfa; }
+.todo-lane-today { border-color: #cfe2ff; background: #f7faff; }
+.todo-lane h2 { margin: 0 0 8px; font-size: 13.5px; color: var(--ink); }
+.todo-lane-list { min-height: 56px; }
+.todo-lane .empty-note { padding: 8px 2px; }
+.todo-lane .todo-item { align-items: center; gap: 8px; min-width: 0; }
+.todo-lane .todo-item .drag-handle, .todo-lane .todo-item input[type="checkbox"] { align-self: center; margin-top: 0; }
+.todo-lane .todo-item .todo-body { min-width: 0; }
+.todo-lane .todo-item .btn { flex: 0 0 auto; }
+.todo-lane .todo-meta { gap: 6px; }
 .todo-section { margin-bottom: 16px; }
 .todo-section:last-child { margin-bottom: 0; }
 .todo-section h4 {
@@ -263,6 +402,7 @@ input.inline-name { width: 100%; }
   border: 1px solid var(--grid); margin-bottom: 8px;
   cursor: pointer; background: #fff;
 }
+.todo-item .drag-handle { flex: 0 0 20px; margin: 0; }
 .todo-item:last-child { margin-bottom: 0; }
 .todo-item.done { opacity: .55; background: #f8f8f6; }
 .todo-item.done .todo-title { text-decoration: line-through; color: var(--muted); }
@@ -350,6 +490,10 @@ input.inline-name { width: 100%; }
   .btn.small { min-height: 36px; padding: 8px 12px; font-size: 13px; }
   .btn-row .btn { flex: 1 1 auto; }
 
+  .todo-columns { grid-template-columns: 1fr; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .dashboard-net-worth-card, .dashboard-reminders-card { min-height: 0; }
+
   input[type="text"], input[type="url"], input[type="number"], input[type="date"],
   input[type="month"], select, textarea {
     font-size: 16px;
@@ -367,8 +511,21 @@ input.inline-name { width: 100%; }
   .asset-row .inline-name { flex: 1 1 100%; width: 100%; }
   .asset-row .inline-amount { flex: 1 1 auto; width: auto; min-width: 120px; }
   .asset-row .btn.danger { min-width: 42px; min-height: 42px; }
+  .assets-toolbar { align-items: stretch; }
+  .assets-month-select { flex: 1 1 150px; width: auto; }
+  .assets-add-month { flex: 0 0 auto; }
+  .grocery-grid { grid-template-columns: 1fr; }
+  .grocery-shopping-card, .grocery-recipes-card { min-height: 0; }
+  .grocery-quantity { width: 100px !important; flex-basis: 100px; }
+  .meal-ideas-tools { align-items: stretch; }
+  .meal-ideas-search { flex: 1; width: auto; }
+  .meal-ideas-category-filter { width: 140px; }
+  .travel-grid { grid-template-columns: 1fr; }
+  .travel-info-card, .travel-packing-card { min-height: 0; }
+  .travel-date-fields, .lodging-date-fields { grid-template-columns: 1fr; }
 
   .lists-layout { flex-direction: column; gap: 12px; }
+  .list-sidebar { width: 100%; padding: 10px; }
   .list-nav {
     width: 100%;
     flex-direction: row;
@@ -387,7 +544,7 @@ input.inline-name { width: 100%; }
   }
   .list-nav-btn .cnt { margin-left: 8px; }
   .list-toolbar { gap: 8px; }
-  .list-toolbar input[type="text"] { width: 100%; flex: 1 1 100%; }
+  .list-toolbar .list-search { width: 100%; flex: 1 1 100%; }
   .list-toolbar .btn { flex: 1 1 calc(50% - 4px); }
 
   table { font-size: 13px; }

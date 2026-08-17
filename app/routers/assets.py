@@ -90,12 +90,16 @@ def set_goal(
 ) -> AssetGoal:
     """Upsert. PUT rather than POST because there is at most one goal per user, so the
     request is idempotent: sending it twice leaves the same single row."""
+    values = payload.model_dump()
+    # Older API clients only had `purpose`, which also named the asset category. Keep
+    # those clients working while new clients can show a distinct goal description.
+    values["category"] = values["category"] or values["purpose"]
     goal = db.scalar(select(AssetGoal).where(AssetGoal.user_id == user.id))
     if goal is None:
-        goal = AssetGoal(**payload.model_dump(), user_id=user.id)
+        goal = AssetGoal(**values, user_id=user.id)
         db.add(goal)
     else:
-        for field, value in payload.model_dump().items():
+        for field, value in values.items():
             setattr(goal, field, value)
     db.commit()
     db.refresh(goal)

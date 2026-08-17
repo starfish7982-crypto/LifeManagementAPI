@@ -29,8 +29,12 @@ traffic — the first request may take 30-50 seconds while it wakes up.
 
 ## Stack
 
-Python 3.10+ · FastAPI · SQLAlchemy 2.0 · Postgres / SQLite · Pydantic v2 · pytest ·
-Docker · Render · GitHub Actions
+**Backend** — Python 3.10+ · FastAPI · SQLAlchemy 2.0 · Alembic · Postgres / SQLite ·
+Pydantic v2 · JWT + Argon2 · pytest
+
+**Frontend** — React 18 · TypeScript (strict) · Vite
+
+**Delivery** — Docker (multi-stage) · Render · Neon · GitHub Actions
 
 ---
 
@@ -61,6 +65,12 @@ no database and no HTTP.
 Nothing above the `models.py` line knows which database is underneath. That is what let
 the deployment move from SQLite to Postgres by changing one environment variable.
 
+The React app in `web/` is built by Vite and served by this same process from `/app`,
+so the browser never makes a cross-origin request and CORS is off by default. That
+couples the two deploys together — a CSS change rebuilds the whole image — which is a
+real cost, paid for a setup with one origin, one cold start, and no CORS configuration
+to get wrong.
+
 ---
 
 ## Running it
@@ -81,10 +91,25 @@ integrations stay disabled until you configure them.
 
 Open <http://127.0.0.1:8000/docs> for the interactive OpenAPI documentation.
 
+That serves the API. The UI is a separate build:
+
 ```bash
-pytest                      # 57 tests
-pytest --cov=app            # 94% coverage
-ruff check app tests        # lint
+cd web
+npm install
+npm run build     # tsc --noEmit, then vite build into web/dist
+```
+
+`app/main.py` mounts `web/dist` at `/app`, so once it is built the whole thing is on
+one origin at <http://127.0.0.1:8000>. While working on the UI, `npm run dev` is
+faster — Vite serves it on :5173 with hot reload and proxies the API paths through to
+:8000, so the browser still sees a single origin and the dev setup exercises the same
+same-origin behaviour as production.
+
+```bash
+pytest                              # 122 tests
+pytest --cov=app                    # 95% coverage
+ruff check app tests alembic scripts
+cd web && npm run typecheck && npm run lint
 docker build -t life-management-api . && docker run -p 8000:8000 life-management-api
 ```
 
@@ -258,8 +283,12 @@ Python 服務，關聯式資料表、需驗證的 HTTP API，以及測試。
 
 ### 技術
 
-Python 3.10+ · FastAPI · SQLAlchemy 2.0 · Postgres / SQLite · Pydantic v2 · pytest ·
-Docker · Render · GitHub Actions
+**後端** — Python 3.10+ · FastAPI · SQLAlchemy 2.0 · Alembic · Postgres / SQLite ·
+Pydantic v2 · JWT + Argon2 · pytest
+
+**前端** — React 18 · TypeScript（strict）· Vite
+
+**部署** — Docker（多階段建置）· Render · Neon · GitHub Actions
 
 ### 怎麼跑起來
 
@@ -278,10 +307,24 @@ uvicorn app.main:app --reload
 
 開 <http://127.0.0.1:8000/docs> 就有互動式 API 文件。
 
+這樣會啟動 API。前端要另外建置：
+
 ```bash
-pytest                      # 57 個測試
-pytest --cov=app            # 94% 覆蓋率
-ruff check app tests        # 靜態檢查
+cd web
+npm install
+npm run build     # 先跑 tsc --noEmit，再 vite build 到 web/dist
+```
+
+`app/main.py` 會把 `web/dist` 掛在 `/app`，所以建置完之後整個 app 都在
+<http://127.0.0.1:8000> 這一個來源底下。開發前端時用 `npm run dev` 比較快——Vite 在
+:5173 提供熱重載，並把 API 路徑代理到 :8000，瀏覽器仍然只看到單一來源，開發環境跟正式
+環境的同源行為一致。
+
+```bash
+pytest                              # 122 個測試
+pytest --cov=app                    # 95% 覆蓋率
+ruff check app tests alembic scripts
+cd web && npm run typecheck && npm run lint
 docker build -t life-management-api . && docker run -p 8000:8000 life-management-api
 ```
 

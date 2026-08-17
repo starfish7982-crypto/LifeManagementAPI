@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Todo, User
-from app.schemas import TodoIn, TodoOut, TodoPatch
+from app.schemas import TodoIn, TodoOrderIn, TodoOut, TodoPatch
 from app.security import current_user
 
 router = APIRouter(prefix="/todos", tags=["todos"])
@@ -43,7 +43,7 @@ def list_todos(
         stmt = stmt.where(Todo.done.is_(done))
     if due_before is not None:
         stmt = stmt.where(Todo.due_date.is_not(None), Todo.due_date <= due_before)
-    stmt = stmt.order_by(Todo.due_date.is_(None), Todo.due_date, Todo.id)
+    stmt = stmt.order_by(Todo.bucket, Todo.position, Todo.id)
     return list(db.scalars(stmt.limit(limit).offset(offset)))
 
 
@@ -55,11 +55,50 @@ def create_todo(
 ) -> Todo:
     # Ownership comes from the token, never from the request body. A `user_id` field on
     # TodoIn would let any caller write rows into any account.
-    todo = Todo(**payload.model_dump(), user_id=user.id)
+    # Position is allocated inside the selected lane.  Count() would reuse a deleted
+    # slot, so use max()+1 just as the other reorderable lists do.
+    highest = db.scalar(
+        select(func.max(Todo.position)).where(
+            Todo.user_id == user.id, Todo.bucket == payload.bucket
+        )
+    )
+    todo = Todo(
+        **payload.model_dump(),
+        user_id=user.id,
+        position=0 if highest is None else highest + 1,
+    )
     db.add(todo)
     db.commit()
     db.refresh(todo)
     return todo
+
+
+@router.put("/order", response_model=list[TodoOut])
+def reorder_todos(
+    payload: TodoOrderIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[Todo]:
+    """Persist a lane's complete drag/drop order.
+
+    The full-set check prevents a stale page from accidentally moving an item the
+    user cannot see to an arbitrary position.
+    """
+    rows = list(
+        db.scalars(
+            select(Todo)
+            .where(Todo.user_id == user.id, Todo.bucket == payload.bucket)
+            .order_by(Todo.position, Todo.id)
+        )
+    )
+    by_id = {row.id: row for row in rows}
+    if len(payload.ids) != len(set(payload.ids)) or set(payload.ids) != set(by_id):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Order must include this lane")
+
+    for position, todo_id in enumerate(payload.ids):
+        by_id[todo_id].position = position
+    db.commit()
+    return [by_id[todo_id] for todo_id in payload.ids]
 
 
 @router.patch("/{todo_id}", response_model=TodoOut)

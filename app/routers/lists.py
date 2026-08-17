@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import ListItem, ListTable, User
-from app.schemas import ListIn, ListItemIn, ListItemOut, ListOut
+from app.schemas import ListIn, ListItemIn, ListItemOut, ListOut, ReorderIn
 from app.security import current_user
 
 router = APIRouter(prefix="/lists", tags=["lists"])
@@ -72,6 +72,43 @@ def list_lists(
         .order_by(ListTable.position, ListTable.id)
     )
     return list(db.scalars(stmt))
+
+
+@router.put("/order", response_model=list[ListOut])
+def reorder_lists(
+    payload: ReorderIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[ListTable]:
+    """Set the order of the lists themselves — which one appears first in the sidebar.
+
+    Declared before `PUT /{list_id}` for the same reason the row version is declared
+    before `PUT /{list_id}/items/{item_id}`: FastAPI matches in registration order, so
+    a literal segment that could also parse as a path parameter has to come first.
+
+    Same shape as reordering rows: the full order, so the request states the result
+    rather than an instruction whose meaning depends on what the server already has.
+    """
+    owned = list(
+        db.scalars(
+            select(ListTable).where(ListTable.user_id == user.id).order_by(ListTable.position)
+        )
+    )
+    current = {table.id for table in owned}
+
+    if len(set(payload.ids)) != len(payload.ids):
+        raise HTTPException(422, "The same list id appears more than once")
+    if set(payload.ids) != current:
+        raise HTTPException(
+            409, "The request does not match your lists; reload and try again"
+        )
+
+    by_id = {table.id: table for table in owned}
+    for position, list_id in enumerate(payload.ids):
+        by_id[list_id].position = position
+
+    db.commit()
+    return [by_id[list_id] for list_id in payload.ids]
 
 
 @router.post("", response_model=ListOut, status_code=status.HTTP_201_CREATED)
@@ -173,6 +210,47 @@ def create_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.put("/{list_id}/items/order", response_model=ListOut)
+def reorder_items(
+    list_id: int,
+    payload: ReorderIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> ListTable:
+    """Set the order of every row at once.
+
+    Declared above `PUT /{list_id}/items/{item_id}` on purpose. FastAPI matches routes
+    in registration order, and `order` would otherwise be tried as an `item_id` — which
+    fails as a 422 on the path parameter rather than reaching this function, and does so
+    in a way that reads like a validation bug rather than a routing one.
+
+    The request must name exactly the rows this list has: no more, no fewer, no
+    duplicates. Anything else means the client is working from a stale copy — a row was
+    added or deleted in another tab — and applying it would silently drop rows or
+    corrupt their positions. Rejecting is recoverable; the client reloads and retries.
+    """
+    table = _get_or_404(db, list_id, user)
+
+    current = {item.id for item in table.items}
+    requested = payload.ids
+
+    if len(set(requested)) != len(requested):
+        raise HTTPException(422, "The same row id appears more than once")
+    if set(requested) != current:
+        raise HTTPException(
+            409,
+            "The request does not match the list's current rows; reload and try again",
+        )
+
+    by_id = {item.id: item for item in table.items}
+    for position, row_id in enumerate(requested):
+        by_id[row_id].position = position
+
+    db.commit()
+    db.refresh(table)
+    return table
 
 
 @router.put("/{list_id}/items/{item_id}", response_model=ListItemOut)

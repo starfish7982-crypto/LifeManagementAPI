@@ -25,13 +25,31 @@ _MAX_ATTEMPTS = 3
 
 
 class TelegramClient:
-    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
-        self._settings = settings
+    """Posts to one chat.
+
+    Takes the credentials rather than the application Settings, because they are now a
+    per-user value in the database. A client reading global configuration could only
+    notify one chat for the whole service.
+    """
+
+    def __init__(
+        self,
+        bot_token: str,
+        chat_id: str,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._bot_token = bot_token
+        self._chat_id = chat_id
         self._client = client
+
+    @classmethod
+    def from_settings(cls, settings: Settings, client: httpx.AsyncClient | None = None):
+        """Build from the environment. Used as a fallback when a user has set nothing."""
+        return cls(settings.telegram_bot_token, settings.telegram_chat_id, client=client)
 
     @property
     def enabled(self) -> bool:
-        return self._settings.telegram_enabled
+        return bool(self._bot_token and self._chat_id)
 
     async def send_message(self, text: str) -> bool:
         """Send `text`. Returns True on delivery, False on any failure."""
@@ -39,9 +57,9 @@ class TelegramClient:
             log.info("Telegram disabled; skipping notification")
             return False
 
-        url = f"https://api.telegram.org/bot{self._settings.telegram_bot_token}/sendMessage"
+        url = f"https://api.telegram.org/bot{self._bot_token}/sendMessage"
         payload = {
-            "chat_id": self._settings.telegram_chat_id,
+            "chat_id": self._chat_id,
             "text": text,
             "parse_mode": "HTML",
             "disable_web_page_preview": True,
