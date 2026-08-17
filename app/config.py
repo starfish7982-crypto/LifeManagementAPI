@@ -26,6 +26,18 @@ class Settings(BaseSettings):
     # than the cost of getting refresh-token rotation subtly wrong.
     access_token_ttl_minutes: int = 720
 
+    # Whether `POST /auth/register` will create an account.
+    #
+    # Defaults to closed, and the default is the whole point: this is a personal
+    # deployment on a public URL, so an open endpoint means any stranger who finds it
+    # can take a share of a free-tier instance and of a 0.5 GB database. Defaulting to
+    # open and relying on the deployment to close it gets that backwards — the failure
+    # mode of a forgotten setting should be "nobody can sign up", not "anybody can".
+    #
+    # Existing accounts are unaffected; this gates account creation only. Flip it to
+    # true (an environment variable on the host, no code change) to let people in.
+    allow_registration: bool = False
+
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
 

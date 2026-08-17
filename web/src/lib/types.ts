@@ -27,6 +27,10 @@ export interface Token {
   expires_in: number;
 }
 
+export interface AuthConfig {
+  registration_open: boolean;
+}
+
 export type Frequency = "once" | "monthly" | "yearly";
 
 export interface Reminder {

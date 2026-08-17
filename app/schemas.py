@@ -57,6 +57,12 @@ class Token(BaseModel):
     expires_in: int
 
 
+class AuthConfig(BaseModel):
+    """Read by the sign-in screen before authentication, to decide what to render."""
+
+    registration_open: bool
+
+
 # --------------------------------------------------------------------------- assets
 
 

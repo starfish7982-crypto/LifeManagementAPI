@@ -31,6 +31,12 @@ def settings() -> Settings:
     return Settings(
         database_url="sqlite://",
         jwt_secret=TEST_JWT_SECRET,
+        # Open here, closed in the application default. Almost every test signs an
+        # account up to get a token, so the fixture has to permit it; the closed
+        # default is what a deployment gets, and is covered by its own tests in
+        # test_registration_gate.py rather than by weakening this fixture's honesty
+        # about which setting is under test.
+        allow_registration=True,
         telegram_bot_token="",
         telegram_chat_id="",
         google_calendar_ical_url="",

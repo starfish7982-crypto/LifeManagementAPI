@@ -17,9 +17,11 @@ and tests.
 **Health check:** <https://life-management-api-jkje.onrender.com/health>
 
 Hosted on Render's free tier, which idles the instance after ~15 minutes without
-traffic — the first request may take 30-50 seconds while it wakes up. Accounts are
-self-service: the app is deployed as a personal instance, so sign-up is open but every
-account only ever sees its own rows.
+traffic — the first request may take 30-50 seconds while it wakes up.
+
+**Registration is closed on the deployed instance.** The API docs are public and the
+code is open, but account creation is gated behind `ALLOW_REGISTRATION`, which is off
+by default. Run your own copy to use it — the setup below takes a few minutes.
 
 ---
 
@@ -133,8 +135,15 @@ That is the whole setup. No configuration file is required to start: the databas
 created on first run against local SQLite, and both integrations stay disabled until an
 account configures them.
 
+One thing does need setting, because it defaults to off: account creation.
+
+```bash
+ALLOW_REGISTRATION=true uvicorn app.main:app --reload
+```
+
 Open <http://127.0.0.1:8000/docs> for the interactive OpenAPI documentation, then
-`POST /auth/register` to create the first account.
+`POST /auth/register` to create your account. Once you have one, drop the variable —
+the app keeps working and nobody else can sign up.
 
 That serves the API. The UI is a separate build:
 
@@ -167,6 +176,7 @@ anywhere** — anyone holding it can mint a token for any account. Generate one 
 | Variable | Required | Purpose |
 |---|---|---|
 | `JWT_SECRET` | for deployment | Signs access tokens. The app refuses to boot if this is still the development default in front of a non-SQLite database |
+| `ALLOW_REGISTRATION` | no | **Defaults to false.** `POST /auth/register` answers 403 until this is true. Existing accounts are unaffected |
 | `ACCESS_TOKEN_TTL_MINUTES` | no | Default 720 (12 hours) |
 | `DATABASE_URL` | no | Defaults to `sqlite:///./life.db`; set to a Postgres URL when deployed |
 | `CORS_ORIGINS` | no | Comma-separated origins. Blank by default, and blank is correct while the UI ships from this same process. Never `*` — requests carry an `Authorization` header |
@@ -217,7 +227,8 @@ identifies.
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/health` | Unauthenticated liveness probe |
-| `POST` | `/auth/register` `/auth/login` | Login is the OAuth2 password flow (form-encoded) and returns a JWT |
+| `GET` | `/auth/config` | Unauthenticated; tells the sign-in screen whether to offer sign-up |
+| `POST` | `/auth/register` `/auth/login` | Register is 403 unless `ALLOW_REGISTRATION`. Login is the OAuth2 password flow (form-encoded) and returns a JWT |
 | `GET` `POST` | `/auth/me` `/auth/password` | Current account; change password (returns a fresh token) |
 | `GET` `POST` | `/assets/snapshots` | Paginated list (capped at 200); create |
 | `GET` `PUT` `DELETE` | `/assets/snapshots/{id}` | |
@@ -266,6 +277,13 @@ in one place.
 **There is no refresh token.** A second token type roughly doubles the auth surface, and
 for a personal tool the cost of signing in again each day is lower than the cost of
 getting refresh-token rotation subtly wrong.
+
+**Registration is closed by default, and the default is the security property.** A
+personal deployment sits on a public URL; an open endpoint means any stranger who finds
+it takes a share of a free instance and of a 0.5 GB database. Defaulting to open and
+relying on the deployment to close it has the failure mode backwards — a forgotten
+setting should mean "nobody can sign up", not "anybody can". The check runs before the
+username lookup, so a closed instance cannot be used to find out which names are taken.
 
 **Integrations are per account, with no server-wide calendar fallback.** A fallback is
 surprising in a personal app: it can make a newly created account appear to have
@@ -365,7 +383,9 @@ Python 服務，關聯式資料表、每位使用者獨立的驗證機制、sche
 **健康檢查：**<https://life-management-api-jkje.onrender.com/health>
 
 部署在 Render 免費方案，約 15 分鐘無流量會休眠，第一個請求可能要等 30-50 秒喚醒。
-帳號採自助註冊：這是個人用途的部署，註冊開放，但每個帳號永遠只看得到自己的資料。
+
+**線上這個部署的註冊功能是關閉的。** API 文件公開、程式碼開源，但建立帳號受
+`ALLOW_REGISTRATION` 控制，而它預設是關的。想使用請自行架設一份，下面的步驟只要幾分鐘。
 
 ---
 
@@ -471,8 +491,14 @@ uvicorn app.main:app --reload
 這樣就好，**不需要任何設定檔就能啟動**：資料庫在第一次執行時對本機 SQLite 自動建立，
 兩個外部整合在帳號自行設定之前都保持停用。
 
+只有一件事需要特別設定，因為它預設是關的：建立帳號。
+
+```bash
+ALLOW_REGISTRATION=true uvicorn app.main:app --reload
+```
+
 開 <http://127.0.0.1:8000/docs> 就有互動式 API 文件，然後用 `POST /auth/register`
-建立第一個帳號。
+建立你的帳號。有帳號之後把這個變數拿掉即可——app 照常運作，而別人無法註冊。
 
 這樣會啟動 API。前端要另外建置：
 
@@ -504,6 +530,7 @@ docker build -t life-management-api . && docker run -p 8000:8000 life-management
 | 變數 | 必要 | 用途 |
 |---|---|---|
 | `JWT_SECRET` | 部署時必要 | 簽發 access token。當資料庫不是本機 SQLite 而這個值還是開發預設值時，程式會拒絕啟動 |
+| `ALLOW_REGISTRATION` | 否 | **預設 false。** 在設成 true 之前，`POST /auth/register` 一律回 403。既有帳號不受影響 |
 | `ACCESS_TOKEN_TTL_MINUTES` | 否 | 預設 720（12 小時） |
 | `DATABASE_URL` | 否 | 預設 `sqlite:///./life.db`；部署時改指向 Postgres |
 | `CORS_ORIGINS` | 否 | 逗號分隔的來源清單。預設留空，而在前端由同一個行程提供時，留空就是正確的。絕不要填 `*`——請求帶著 `Authorization` 標頭 |
@@ -546,7 +573,8 @@ migration 失敗會直接讓部署失敗，而不是讓 API 對著一個程式�
 | 方法 | 路徑 | 說明 |
 |---|---|---|
 | `GET` | `/health` | 不需驗證的存活探測 |
-| `POST` | `/auth/register` `/auth/login` | 登入走 OAuth2 password flow（form 編碼），回傳 JWT |
+| `GET` | `/auth/config` | 不需驗證；告訴登入畫面要不要顯示註冊入口 |
+| `POST` | `/auth/register` `/auth/login` | 未開放 `ALLOW_REGISTRATION` 時註冊回 403。登入走 OAuth2 password flow（form 編碼），回傳 JWT |
 | `GET` `POST` | `/auth/me` `/auth/password` | 目前帳號；修改密碼（會回傳新的 token） |
 | `GET` `POST` | `/assets/snapshots` | 分頁列表（上限 200）；建立 |
 | `GET` `PUT` `DELETE` | `/assets/snapshots/{id}` | |
@@ -592,6 +620,12 @@ curl -X POST http://localhost:8000/assets/snapshots \
 
 **沒有 refresh token。** 多一種 token 型別，驗證的攻擊面大約會翻倍；對個人工具來說，
 每天重新登入一次的成本，低於把 refresh token 輪替做得似是而非的成本。
+
+**註冊預設關閉，而「預設值」本身就是那個安全性質。** 個人部署是放在公開網址上的，
+端點開著就代表任何找到它的陌生人都能分走免費實例的資源和那 0.5 GB 資料庫。
+預設開放、指望部署時去關掉，等於把失效模式弄反了——忘記設定時應該是「沒人能註冊」，
+而不是「誰都能註冊」。這個檢查排在查詢帳號名之前，所以關閉的服務也不能被拿來探測
+哪些帳號名已被使用。
 
 **整合設定屬於各個帳號，而且日曆沒有全服務後備。** 在個人應用裡，後備機制會造成意外：
 新建立的帳號在自己連上日曆之前，可能會看起來像是有別人的測試日曆。

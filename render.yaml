@@ -36,6 +36,13 @@ services:
       - key: CORS_ORIGINS
         sync: false
 
+      # Account creation. Stated explicitly rather than left to the application default
+      # so that the answer to "can strangers sign up to this?" is visible in the
+      # repository, next to everything else about how the service is configured.
+      # Change it here and the next deploy applies it; existing accounts are unaffected.
+      - key: ALLOW_REGISTRATION
+        value: "false"
+
       # Optional integrations. Leave blank to keep them disabled.
       - key: TELEGRAM_BOT_TOKEN
         sync: false

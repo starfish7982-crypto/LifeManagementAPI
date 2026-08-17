@@ -13,6 +13,7 @@
 
 import { t } from "./i18n";
 import type {
+  AuthConfig,
   Goal,
   GoalIn,
   Idea,
@@ -213,6 +214,8 @@ async function upload<T>(path: string, field: string, file: File): Promise<T> {
 
 export const api = {
   // ------------------------------------------------------------------------ auth
+  authConfig: () => request<AuthConfig>("GET", "/auth/config", { auth: false }),
+
   register: (username: string, password: string) =>
     request<User>("POST", "/auth/register", { body: { username, password }, auth: false }),
 

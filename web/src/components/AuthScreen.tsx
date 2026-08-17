@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import { ApiError, api } from "../lib/api";
@@ -12,6 +12,26 @@ export function AuthScreen() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Starts closed and opens only on an explicit yes from the server. The alternative
+  // default flashes a "create an account" link on every load and then withdraws it,
+  // and on a closed instance that link was never going to work.
+  const [canRegister, setCanRegister] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .authConfig()
+      .then((cfg) => {
+        if (live) setCanRegister(cfg.registration_open);
+      })
+      // An unreachable server is not a reason to offer a sign-up that cannot succeed.
+      // Sign-in still renders, and says what went wrong when it is attempted.
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const registering = mode === "register";
 
@@ -89,19 +109,21 @@ export function AuthScreen() {
           {busy ? t("please_wait") : t(registering ? "register" : "login")}
         </button>
 
-        <p className="auth-toggle">
-          <span>{t(registering ? "have_account" : "no_account")}</span>{" "}
-          <button
-            type="button"
-            className="linklike"
-            onClick={() => {
-              setMode(registering ? "login" : "register");
-              setError(null);
-            }}
-          >
-            {t(registering ? "login" : "register")}
-          </button>
-        </p>
+        {canRegister && (
+          <p className="auth-toggle">
+            <span>{t(registering ? "have_account" : "no_account")}</span>{" "}
+            <button
+              type="button"
+              className="linklike"
+              onClick={() => {
+                setMode(registering ? "login" : "register");
+                setError(null);
+              }}
+            >
+              {t(registering ? "login" : "register")}
+            </button>
+          </p>
+        )}
 
         <LanguageSwitch className="auth-lang" current={lang} />
       </form>

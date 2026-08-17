@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.models import User
-from app.schemas import PasswordChange, Token, UserCreate, UserOut
+from app.schemas import AuthConfig, PasswordChange, Token, UserCreate, UserOut
 from app.security import (
     authenticate,
     create_access_token,
@@ -28,8 +28,29 @@ from app.security import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+@router.get("/config", response_model=AuthConfig)
+def auth_config(settings: Settings = Depends(get_settings)) -> AuthConfig:
+    """What the sign-in screen needs to know before anyone has signed in.
+
+    Unauthenticated by necessity — it is read to decide whether to draw the "create an
+    account" link at all. It discloses nothing that trying the endpoint would not:
+    a closed instance answers 403 either way. Showing a link that always fails is the
+    thing worth avoiding.
+    """
+    return AuthConfig(registration_open=settings.allow_registration)
+
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)) -> User:
+def register(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> User:
+    # Checked before the username lookup, so a closed instance cannot be used to probe
+    # which names are taken — every request gets the same 403 regardless.
+    if not settings.allow_registration:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Registration is closed")
+
     existing = db.scalar(select(User).where(User.username == payload.username))
     if existing is not None:
         # This does leak that the address is registered. Every alternative leaks it
