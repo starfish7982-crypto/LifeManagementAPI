@@ -249,20 +249,6 @@ identifies.
 | `GET` | `/today` | Local data joined with the calendar feed |
 | `POST` | `/today/notify` | Push the summary to Telegram |
 
-```bash
-# 1. Sign in (form-encoded — this is the OAuth2 password flow)
-TOKEN=$(curl -s -X POST http://localhost:8000/auth/login \
-  -d 'username=YOUR_USERNAME&password=YOUR_PASSWORD' | python -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
-
-# 2. Use it
-curl -X POST http://localhost:8000/assets/snapshots \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"month":"2026-03-01","items":[
-        {"name":"Checking","category":"cash","amount":"4200.00"},
-        {"name":"Brokerage","category":"investments","amount":"18500.50"}]}'
-```
-
----
 
 ## Design decisions
 
@@ -602,20 +588,6 @@ migration 失敗會直接讓部署失敗，而不是讓 API 對著一個程式�
 | `GET` | `/today` | 本地資料與日曆來源合併 |
 | `POST` | `/today/notify` | 把摘要推播到 Telegram |
 
-```bash
-# 1. 登入（form 編碼——這是 OAuth2 password flow）
-TOKEN=$(curl -s -X POST http://localhost:8000/auth/login \
-  -d 'username=你的帳號&password=你的密碼' | python -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
-
-# 2. 拿去用
-curl -X POST http://localhost:8000/assets/snapshots \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"month":"2026-03-01","items":[
-        {"name":"Checking","category":"cash","amount":"4200.00"},
-        {"name":"Brokerage","category":"investments","amount":"18500.50"}]}'
-```
-
----
 
 ### 設計決策
 
