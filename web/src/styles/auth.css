@@ -595,9 +595,17 @@ input:where(
   }
 }
 
-/* Hidden above the mobile breakpoint, where the sidebar footer holds these instead. */
-.mobile-account {
-  display: none;
+/* Hidden above the mobile breakpoint, where the sidebar footer holds these instead.
+
+   Scoped to a min-width query rather than left unscoped. Unscoped, it applied at every
+   width and — sitting after the max-width block, at equal specificity — won there too,
+   so the account controls were hidden on the one screen size that has nowhere else to
+   put them. On a phone that left no way to change the language, change the password,
+   or sign out: three controls that existed in the markup and could not be reached. */
+@media (min-width: 769px) {
+  .mobile-account {
+    display: none;
+  }
 }
 
 /* Respect a reduced-motion preference. The only transition here is the goal bar, but
