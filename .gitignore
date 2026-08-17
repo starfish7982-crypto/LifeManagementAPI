@@ -11,8 +11,10 @@ htmlcov/
 .ruff_cache/
 .DS_Store
 
-# personal notes, not for the public repo
+# personal notes, not for the public repo. DEPLOY.md records this instance's account
+# names and dashboard specifics; the shareable half of it lives in README.md.
 SELF_CHECK.md
+DEPLOY.md
 *.egg-info/
 
 # Frontend build artefacts. package-lock.json is NOT ignored: it is what makes
@@ -22,3 +24,11 @@ web/dist/
 
 # Scratch directory used when staging the tree for an out-of-band build check.
 .deploytmp/
+
+# Data dumps. This repository is public, and an export of the live database contains
+# real balances, addresses and account identifiers — the schema is the shareable part,
+# the rows are not. Ignored by pattern rather than by name so the next export cannot be
+# committed by being called something slightly different.
+*.sql
+import_to_neon.sql
+life.db
