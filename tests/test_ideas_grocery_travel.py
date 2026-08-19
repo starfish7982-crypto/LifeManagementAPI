@@ -175,6 +175,36 @@ def test_packing_items_toggle_and_keep_order(client):
     assert [p["done"] for p in packing] == [False, True, False]
 
 
+def test_each_traveller_can_have_a_separate_packing_checklist(client, other_client):
+    sally = client.post("/travel/packing-lists", json={"name": "Sally"}).json()
+    eason = client.post("/travel/packing-lists", json={"name": "Eason"}).json()
+    client.post(f"/travel/packing?packing_list_id={sally['id']}", json={"text": "護照"})
+    client.post(f"/travel/packing?packing_list_id={eason['id']}", json={"text": "相機"})
+
+    trip = client.get("/travel").json()
+    lists = {packing_list["name"]: packing_list["items"] for packing_list in trip["packing_lists"]}
+    assert [item["text"] for item in lists["Sally"]] == ["護照"]
+    assert [item["text"] for item in lists["Eason"]] == ["相機"]
+    assert other_client.put(f"/travel/packing-lists/{sally['id']}", json={"name": "Mine"}).status_code == 404
+
+
+def test_packing_items_can_be_reordered_only_within_their_own_checklist(client):
+    packing_list = client.post("/travel/packing-lists", json={"name": "Sally"}).json()
+    ids = [
+        client.post(f"/travel/packing?packing_list_id={packing_list['id']}", json={"text": text}).json()["id"]
+        for text in ["護照", "外套", "相機"]
+    ]
+    response = client.put(
+        f"/travel/packing-lists/{packing_list['id']}/items/order",
+        json={"ids": [ids[2], ids[0], ids[1]]},
+    )
+    assert response.status_code == 200
+    assert [item["position"] for item in response.json()] == [0, 1, 2]
+    trip = client.get("/travel").json()
+    result = next(row for row in trip["packing_lists"] if row["id"] == packing_list["id"])
+    assert [item["text"] for item in result["items"]] == ["相機", "護照", "外套"]
+
+
 def test_deleting_the_trip_takes_its_children(client):
     client.post("/travel/lodgings", json={"name": "Hotel"})
     client.post("/travel/packing", json={"text": "護照"})

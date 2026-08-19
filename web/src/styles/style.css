@@ -25,7 +25,13 @@
   --safe-top: env(safe-area-inset-top, 0px);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; }
+html, body {
+  height: 100%;
+  /* iOS otherwise inflates text in some narrow blocks independently of the rest of
+     the page, which made mobile list rows and native date controls look oversized. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   font-family: system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
   background: var(--page);
@@ -270,6 +276,19 @@ input.inline-name { width: 100%; }
 .travel-packing-card .todo-item { align-items: center; }
 .travel-packing-card .todo-item .todo-body { min-height: 22px; justify-content: center; }
 .travel-packing-card .todo-item .btn.danger { flex: 0 0 32px; margin-left: auto; }
+.travel-packing-head { margin-bottom: 10px; }
+.travel-packing-head > .btn { min-height: 30px; padding: 4px 10px; font-size: 12.5px; }
+.packing-list-tabs { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 7px; }
+.packing-list-tab, .packing-list-edit {
+  all: unset; box-sizing: border-box; cursor: pointer; color: var(--ink-2);
+  border: 1px solid var(--grid); border-radius: 7px; background: #fff;
+  padding: 4px 9px; font-size: 12.5px; line-height: 1.4;
+}
+.packing-list-tab:hover, .packing-list-tab:focus-visible, .packing-list-edit:hover, .packing-list-edit:focus-visible {
+  border-color: var(--accent); color: var(--accent);
+}
+.packing-list-tab.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.packing-list-edit { margin: 0 0 10px; }
 .travel-save { margin-top: 4px; }
 .travel-benefits-card { margin-top: 16px; }
 .travel-benefits-card .card-head-row { margin-bottom: 12px; }
@@ -494,8 +513,8 @@ input.inline-name { width: 100%; }
     width: 100%;
     max-width: none;
   }
-  .page-title { font-size: 19px; }
-  .page-sub { margin-bottom: 14px; font-size: 12.5px; }
+  .page-title { font-size: 18px; }
+  .page-sub { margin-bottom: 14px; font-size: 12px; }
   .card { padding: 14px 14px; }
   /* Card headings had no size of their own, so they fell back to the browser default
      of 1.5em — 24px, larger than the page title above them, on the screen with the
@@ -505,8 +524,8 @@ input.inline-name { width: 100%; }
   .card-head-row h2 { margin-bottom: 0; }
   .hero-num { font-size: 28px; }
 
-  .btn { min-height: 42px; padding: 10px 14px; font-size: 14.5px; }
-  .btn.small { min-height: 36px; padding: 8px 12px; font-size: 13px; }
+  .btn { min-height: 38px; padding: 8px 12px; font-size: 13.5px; }
+  .btn.small { min-height: 34px; padding: 6px 10px; font-size: 12.5px; }
   .btn-row .btn { flex: 1 1 auto; }
 
   .todo-columns { grid-template-columns: 1fr; }
@@ -516,8 +535,8 @@ input.inline-name { width: 100%; }
   input[type="text"], input[type="url"], input[type="number"], input[type="date"],
   input[type="month"], select, textarea {
     font-size: 16px;
-    padding: 10px 12px;
-    min-height: 42px;
+    padding: 8px 10px;
+    min-height: 38px;
   }
 
   .asset-row {
@@ -550,7 +569,16 @@ input.inline-name { width: 100%; }
   /* Two dates stay side by side. They are a pair — a start and an end — and stacking
      them cost a whole extra row to say something the pair already said. */
   .travel-date-fields, .lodging-date-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .travel-date-fields input, .lodging-date-fields input { padding: 10px 8px; }
+  .travel-date-fields input, .lodging-date-fields input {
+    min-width: 0;
+    min-height: 38px;
+    padding: 6px 5px;
+    font-size: 14px;
+  }
+  .travel-packing-head { align-items: flex-start; }
+  .travel-packing-head > h2 { max-width: 52%; }
+  .packing-list-tabs { gap: 6px; }
+  .packing-list-tab, .packing-list-edit { padding: 4px 8px; font-size: 12px; }
   /* A hotel's full postal address is four lines on a phone and the reason the card was
      taller than the screen. Two lines is enough to recognise which place it is; the
      link still navigates to the full address. */

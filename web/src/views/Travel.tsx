@@ -7,8 +7,9 @@ import { api } from "../lib/api";
 import { useToast } from "../lib/context";
 import { fmtDate, money, todayISO } from "../lib/format";
 import { t } from "../lib/i18n";
-import type { CalendarLodgingSuggestion, TravelBenefit, TravelExpense } from "../lib/types";
+import type { CalendarLodgingSuggestion, PackingList, TravelBenefit, TravelExpense } from "../lib/types";
 import { useResource } from "../lib/useResource";
+import { useSortable } from "../lib/useSortable";
 
 type LodgingDates = { checkIn: string; checkOut: string };
 type LodgingFormValues = LodgingDates & {
@@ -33,14 +34,28 @@ export function Travel() {
   const [editingExpense, setEditingExpense] = useState<TravelExpense | null>(null);
   const [receiptDraftId, setReceiptDraftId] = useState<number | null>(null);
   const [scanningReceipt, setScanningReceipt] = useState(false);
+  const [activePackingListId, setActivePackingListId] = useState<number | null>(null);
+  const [addingPackingList, setAddingPackingList] = useState(false);
+  const [editingPackingList, setEditingPackingList] = useState<PackingList | null>(null);
   const receiptInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState("");
 
   const data = trip.data;
-  const packing = data?.packing ?? [];
+  const packingLists = data?.packing_lists ?? [];
+  const activePackingList = packingLists.find((list) => list.id === activePackingListId) ?? packingLists[0];
+  const packing = activePackingList?.items ?? [];
   const packed = packing.filter((item) => item.done).length;
   const expenses = data?.expenses ?? [];
   const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+
+  useEffect(() => {
+    // Keep a newly created checklist selected while the refetch is in flight. Resetting
+    // an id that is not in the old response would otherwise bounce the view back to
+    // the first person's list before the new response arrives.
+    if (activePackingListId === null && packingLists[0]) {
+      setActivePackingListId(packingLists[0].id);
+    }
+  }, [activePackingListId, data?.packing_lists]);
 
   const saveTrip = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -72,9 +87,45 @@ export function Travel() {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
-    await api.addPacking(text);
+    if (!activePackingList) return;
+    await api.addPacking(text, activePackingList.id);
     trip.reload();
   };
+
+  const reorderPacking = async (next: typeof packing) => {
+    if (!activePackingList) return;
+    const nextPositions = new Map(next.map((item, index) => [item.id, index]));
+    trip.patch((current) => current === null ? current : {
+      ...current,
+      packing: current.packing.map((item) => ({
+        ...item,
+        position: nextPositions.get(item.id) ?? item.position,
+      })),
+      packing_lists: current.packing_lists.map((list) => (
+        list.id === activePackingList.id
+          ? {
+              ...list,
+              items: [...list.items]
+                .map((item) => ({ ...item, position: nextPositions.get(item.id) ?? item.position }))
+                .sort((a, b) => a.position - b.position || a.id - b.id),
+            }
+          : list
+      )),
+    });
+    try {
+      await api.reorderPacking(activePackingList.id, next.map((item) => item.id));
+    } finally {
+      trip.reload();
+    }
+  };
+
+  const packingSortable = useSortable(packing.length, (from, to) => {
+    const next = [...packing];
+    const [moved] = next.splice(from, 1);
+    if (!moved) return;
+    next.splice(to, 0, moved);
+    void reorderPacking(next);
+  });
 
   return (
     <ViewFrame title={t("travel_title")} subtitle={t("travel_sub")} resources={[trip, benefits]}>
@@ -159,7 +210,33 @@ export function Travel() {
         </section>
 
         <section className="card travel-packing-card">
-          <h2>🎒 {t("packing", { done: packed, total: packing.length })}</h2>
+          <div className="card-head-row travel-packing-head">
+            <h2>🎒 {t("packing", { done: packed, total: packing.length })}</h2>
+            <button type="button" className="btn small" onClick={() => setAddingPackingList(true)}>
+              {t("add_packing_list")}
+            </button>
+          </div>
+          <div className="packing-list-tabs" aria-label={t("packing_lists")}>
+            {packingLists.map((list) => (
+              <button
+                type="button"
+                className={`packing-list-tab ${list.id === activePackingList?.id ? "active" : ""}`}
+                key={list.id}
+                onClick={() => setActivePackingListId(list.id)}
+              >
+                {list.name}
+              </button>
+            ))}
+          </div>
+          {activePackingList && (
+            <button
+              type="button"
+              className="packing-list-edit"
+              onClick={() => setEditingPackingList(activePackingList)}
+            >
+              {t("edit_packing_list")}
+            </button>
+          )}
           <form className="shop-add" onSubmit={addPacking}>
             <input
               type="text"
@@ -171,8 +248,25 @@ export function Travel() {
             <button type="submit" className="btn">{t("add_btn")}</button>
           </form>
           {packing.length === 0 && <div className="empty-note">{t("no_packing")}</div>}
-          {packing.map((item) => (
-            <div className={`todo-item ${item.done ? "done" : ""}`} key={item.id}>
+          <div className="travel-packing-items" {...packingSortable.containerProps}>
+          {packing.map((item, index) => {
+            const rowProps = packingSortable.rowProps(index);
+            return (
+            <div
+              className={`todo-item ${item.done ? "done" : ""}`}
+              key={item.id}
+              ref={rowProps.ref}
+              style={rowProps.style}
+            >
+              <button
+                type="button"
+                className="drag-handle"
+                aria-label={t("reorder")}
+                title={t("reorder_hint")}
+                {...packingSortable.handleProps(index)}
+              >
+                ⠿
+              </button>
               <input
                 type="checkbox"
                 checked={item.done}
@@ -182,6 +276,11 @@ export function Travel() {
                   trip.patch((current) => current === null ? current : {
                     ...current,
                     packing: current.packing.map((row) => row.id === item.id ? { ...row, done } : row),
+                    packing_lists: current.packing_lists.map((list) => (
+                      list.id === activePackingList?.id
+                        ? { ...list, items: list.items.map((row) => row.id === item.id ? { ...row, done } : row) }
+                        : list
+                    )),
                   });
                   try {
                     await api.togglePacking(item.id, done);
@@ -203,7 +302,9 @@ export function Travel() {
                 ×
               </button>
             </div>
-          ))}
+            );
+          })}
+          </div>
         </section>
       </div>
 
@@ -364,7 +465,71 @@ export function Travel() {
           }}
         />
       )}
+      {(addingPackingList || editingPackingList) && (
+        <PackingListModal
+          {...(editingPackingList ? { packingList: editingPackingList } : {})}
+          onClose={() => {
+            setAddingPackingList(false);
+            setEditingPackingList(null);
+          }}
+          onSaved={(packingList) => {
+            setAddingPackingList(false);
+            setEditingPackingList(null);
+            setActivePackingListId(packingList.id);
+            toast(t("saved"));
+            trip.reload();
+          }}
+          onDeleted={() => {
+            setEditingPackingList(null);
+            setActivePackingListId(null);
+            toast(t("deleted"));
+            trip.reload();
+          }}
+        />
+      )}
     </ViewFrame>
+  );
+}
+
+function PackingListModal({
+  packingList,
+  onClose,
+  onSaved,
+  onDeleted,
+}: {
+  packingList?: PackingList;
+  onClose: () => void;
+  onSaved: (packingList: PackingList) => void;
+  onDeleted: () => void;
+}) {
+  return (
+    <Modal
+      title={packingList ? t("edit_packing_list") : t("new_packing_list")}
+      onClose={onClose}
+      actionsLeading={packingList && (
+        <button
+          type="button"
+          className="btn danger"
+          onClick={async () => {
+            await api.deletePackingList(packingList.id);
+            onDeleted();
+          }}
+        >
+          {t("delete")}
+        </button>
+      )}
+      onSubmit={async (form) => {
+        const name = String(form.get("name") ?? "").trim();
+        const saved = packingList
+          ? await api.replacePackingList(packingList.id, name)
+          : await api.createPackingList(name);
+        onSaved(saved);
+      }}
+    >
+      <Field label={t("packing_list_name")}>
+        <input name="name" required maxLength={100} defaultValue={packingList?.name ?? ""} placeholder={t("default_packing_list")} />
+      </Field>
+    </Modal>
   );
 }
 

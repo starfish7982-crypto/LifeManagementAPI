@@ -368,6 +368,23 @@ class PackingItemOut(BaseModel):
     position: int
 
 
+class PackingOrderIn(BaseModel):
+    """The complete visible order of one person's packing items."""
+
+    ids: list[int] = Field(min_length=0, max_length=500)
+
+
+class PackingListIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class PackingListOut(PackingListIn):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    position: int
+    items: list[PackingItemOut]
+
+
 class TravelExpenseIn(BaseModel):
     merchant: str = Field(min_length=1, max_length=200)
     amount: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
@@ -425,6 +442,7 @@ class TripOut(BaseModel):
     updated_at: datetime
     lodgings: list[LodgingOut]
     packing: list[PackingItemOut]
+    packing_lists: list[PackingListOut]
     expenses: list[TravelExpenseOut]
 
 

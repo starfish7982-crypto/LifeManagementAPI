@@ -20,13 +20,16 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_calendar_client
-from app.models import Lodging, PackingItem, TravelBenefit, TravelExpense, Trip, User
+from app.models import Lodging, PackingItem, PackingList, TravelBenefit, TravelExpense, Trip, User
 from app.schemas import (
     CalendarLodgingSuggestion,
     LodgingIn,
     LodgingOut,
     PackingItemIn,
     PackingItemOut,
+    PackingOrderIn,
+    PackingListIn,
+    PackingListOut,
     TravelBenefitIn,
     TravelBenefitOut,
     TravelExpenseIn,
@@ -97,6 +100,8 @@ def _trip_or_create(db: Session, user: User) -> Trip:
     if trip is None:
         trip = Trip(user_id=user.id)
         db.add(trip)
+        db.flush()
+        db.add(PackingList(trip_id=trip.id, name="出門 Checklist", position=0))
         db.commit()
         db.refresh(trip)
     return trip
@@ -274,18 +279,138 @@ async def lodging_suggestions(
 # --------------------------------------------------------------------- packing
 
 
+def _default_packing_list(db: Session, trip: Trip) -> PackingList:
+    packing_list = db.scalar(
+        select(PackingList).where(PackingList.trip_id == trip.id).order_by(PackingList.position)
+    )
+    if packing_list is None:
+        packing_list = PackingList(trip_id=trip.id, name="出門 Checklist", position=0)
+        db.add(packing_list)
+        db.flush()
+    return packing_list
+
+
+def _packing_list_or_404(db: Session, packing_list_id: int, user: User) -> PackingList:
+    packing_list = db.scalar(
+        select(PackingList)
+        .join(Trip)
+        .where(PackingList.id == packing_list_id, Trip.user_id == user.id)
+    )
+    if packing_list is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Packing checklist not found")
+    return packing_list
+
+
+@router.get("/packing-lists", response_model=list[PackingListOut])
+def list_packing_lists(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[PackingList]:
+    trip = _trip_or_404(db, user)
+    return list(
+        db.scalars(
+            select(PackingList)
+            .where(PackingList.trip_id == trip.id)
+            .order_by(PackingList.position, PackingList.id)
+        )
+    )
+
+
+@router.post("/packing-lists", response_model=PackingListOut, status_code=status.HTTP_201_CREATED)
+def create_packing_list(
+    payload: PackingListIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> PackingList:
+    trip = _trip_or_create(db, user)
+    highest = db.scalar(select(func.max(PackingList.position)).where(PackingList.trip_id == trip.id))
+    packing_list = PackingList(
+        trip_id=trip.id, name=payload.name, position=0 if highest is None else highest + 1
+    )
+    db.add(packing_list)
+    db.commit()
+    db.refresh(packing_list)
+    return packing_list
+
+
+@router.put("/packing-lists/{packing_list_id}", response_model=PackingListOut)
+def replace_packing_list(
+    packing_list_id: int,
+    payload: PackingListIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> PackingList:
+    packing_list = _packing_list_or_404(db, packing_list_id, user)
+    packing_list.name = payload.name
+    db.commit()
+    db.refresh(packing_list)
+    return packing_list
+
+
+@router.delete("/packing-lists/{packing_list_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_packing_list(
+    packing_list_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> Response:
+    db.delete(_packing_list_or_404(db, packing_list_id, user))
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/packing-lists/{packing_list_id}/items/order", response_model=list[PackingItemOut])
+def reorder_packing_items(
+    packing_list_id: int,
+    payload: PackingOrderIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[PackingItem]:
+    """Persist a checklist's complete drag/drop order.
+
+    Requiring every current item prevents a stale browser tab from silently assigning
+    arbitrary positions to a different person's item, or from losing a row added in
+    another tab.
+    """
+    packing_list = _packing_list_or_404(db, packing_list_id, user)
+    items = list(
+        db.scalars(
+            select(PackingItem)
+            .where(PackingItem.packing_list_id == packing_list.id)
+            .order_by(PackingItem.position, PackingItem.id)
+        )
+    )
+    requested = payload.ids
+    if len(requested) != len(set(requested)):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Duplicate packing item id")
+    by_id = {item.id: item for item in items}
+    if set(requested) != set(by_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "The request does not match this checklist's current items; reload and try again",
+        )
+    for position, item_id in enumerate(requested):
+        by_id[item_id].position = position
+    db.commit()
+    return [by_id[item_id] for item_id in requested]
+
+
 @router.post("/packing", response_model=PackingItemOut, status_code=status.HTTP_201_CREATED)
 def add_packing_item(
     payload: PackingItemIn,
+    packing_list_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ) -> PackingItem:
     trip = _trip_or_create(db, user)
+    packing_list = _packing_list_or_404(db, packing_list_id, user) if packing_list_id else _default_packing_list(db, trip)
+    if packing_list.trip_id != trip.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Packing checklist not found")
     highest = db.scalar(
-        select(func.max(PackingItem.position)).where(PackingItem.trip_id == trip.id)
+        select(func.max(PackingItem.position)).where(PackingItem.packing_list_id == packing_list.id)
     )
     item = PackingItem(
-        **payload.model_dump(), trip_id=trip.id, position=0 if highest is None else highest + 1
+        **payload.model_dump(), trip_id=trip.id, packing_list_id=packing_list.id,
+        position=0 if highest is None else highest + 1
     )
     db.add(item)
     db.commit()

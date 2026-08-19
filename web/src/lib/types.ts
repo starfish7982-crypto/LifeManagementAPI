@@ -225,6 +225,13 @@ export interface PackingItem {
   position: number;
 }
 
+export interface PackingList {
+  id: number;
+  name: string;
+  position: number;
+  items: PackingItem[];
+}
+
 export interface TravelBenefit {
   id: number;
   card_name: string;
@@ -255,6 +262,7 @@ export interface Trip {
   updated_at: string;
   lodgings: Lodging[];
   packing: PackingItem[];
+  packing_lists: PackingList[];
   expenses: TravelExpense[];
 }
 

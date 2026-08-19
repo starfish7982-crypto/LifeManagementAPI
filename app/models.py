@@ -397,6 +397,12 @@ class Trip(Base):
         lazy="selectin",
         order_by="PackingItem.position",
     )
+    packing_lists: Mapped[list[PackingList]] = relationship(
+        back_populates="trip",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="PackingList.position",
+    )
     expenses: Mapped[list[TravelExpense]] = relationship(
         back_populates="trip",
         cascade="all, delete-orphan",
@@ -423,6 +429,27 @@ class Lodging(Base):
     trip: Mapped[Trip] = relationship(back_populates="lodgings")
 
 
+class PackingList(Base):
+    __tablename__ = "packing_lists"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    trip_id: Mapped[int] = mapped_column(
+        ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    trip: Mapped[Trip] = relationship(back_populates="packing_lists")
+    items: Mapped[list[PackingItem]] = relationship(
+        back_populates="packing_list",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="PackingItem.position",
+    )
+
+    __table_args__ = (Index("ix_packing_lists_trip_position", "trip_id", "position"),)
+
+
 class PackingItem(Base):
     __tablename__ = "packing_items"
 
@@ -430,11 +457,15 @@ class PackingItem(Base):
     trip_id: Mapped[int] = mapped_column(
         ForeignKey("trips.id", ondelete="CASCADE"), nullable=False
     )
+    packing_list_id: Mapped[int] = mapped_column(
+        ForeignKey("packing_lists.id", ondelete="CASCADE"), nullable=False
+    )
     text: Mapped[str] = mapped_column(String(200), nullable=False)
     done: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     trip: Mapped[Trip] = relationship(back_populates="packing")
+    packing_list: Mapped[PackingList] = relationship(back_populates="items")
 
 
 class TravelExpense(Base):

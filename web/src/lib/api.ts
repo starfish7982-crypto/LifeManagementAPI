@@ -35,6 +35,7 @@ import type {
   Lodging,
   CalendarLodgingSuggestion,
   PackingItem,
+  PackingList,
   TravelBenefit,
   TravelBenefitIn,
   TravelExpense,
@@ -328,7 +329,17 @@ export const api = {
   lodgingSuggestions: (checkIn: string, checkOut: string) =>
     get<CalendarLodgingSuggestion[]>(`/travel/lodging-suggestions?check_in=${encodeURIComponent(checkIn)}&check_out=${encodeURIComponent(checkOut)}`),
   deleteLodging: (id: number) => del(`/travel/lodgings/${id}`),
-  addPacking: (text: string) => post<PackingItem>("/travel/packing", { text }),
+  packingLists: () => get<PackingList[]>("/travel/packing-lists"),
+  createPackingList: (name: string) => post<PackingList>("/travel/packing-lists", { name }),
+  replacePackingList: (id: number, name: string) => put<PackingList>(`/travel/packing-lists/${id}`, { name }),
+  deletePackingList: (id: number) => del(`/travel/packing-lists/${id}`),
+  reorderPacking: (packingListId: number, ids: number[]) =>
+    put<PackingItem[]>(`/travel/packing-lists/${packingListId}/items/order`, { ids }),
+  addPacking: (text: string, packingListId?: number) =>
+    post<PackingItem>(
+      `/travel/packing${packingListId === undefined ? "" : `?packing_list_id=${packingListId}`}`,
+      { text },
+    ),
   togglePacking: (id: number, done: boolean) =>
     patch<PackingItem>(`/travel/packing/${id}?done=${done}`, {}),
   deletePacking: (id: number) => del(`/travel/packing/${id}`),
