@@ -65,7 +65,9 @@ def load_lists(database: Path) -> list[LocalList]:
 class Api:
     def __init__(self, base_url: str, username: str, password: str) -> None:
         self.client = httpx.Client(base_url=base_url.rstrip("/"), timeout=60)
-        response = self.client.post("/auth/login", data={"username": username, "password": password})
+        response = self.client.post(
+            "/auth/login", data={"username": username, "password": password}
+        )
         response.raise_for_status()
         self.client.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
 
@@ -94,13 +96,19 @@ def import_lists(api: Api, source: list[LocalList]) -> None:
             remote_list = api.send("POST", "/travel/packing-lists", {"name": local.name})
             print(f"+ Checklist: {local.name}")
             remote = api.get("/travel")
-            by_name = {packing_list["name"]: packing_list for packing_list in remote["packing_lists"]}
+            by_name = {
+                packing_list["name"]: packing_list for packing_list in remote["packing_lists"]
+            }
             remote_list = by_name[local.name]
 
         existing_texts = {item["text"] for item in remote_list["items"]}
         for text in local.items:
             if text not in existing_texts:
-                api.send("POST", f"/travel/packing?packing_list_id={remote_list['id']}", {"text": text})
+                api.send(
+                    "POST",
+                    f"/travel/packing?packing_list_id={remote_list['id']}",
+                    {"text": text},
+                )
                 print(f"  + {text}")
 
         # Refresh, then place imported rows in exactly the same order as the local
@@ -120,7 +128,9 @@ def import_lists(api: Api, source: list[LocalList]) -> None:
             (
                 row
                 for row in remote["packing_lists"]
-                if row["name"] == "出門 Checklist" and not row["items"] and row["name"] not in source_names
+                if row["name"] == "出門 Checklist"
+                and not row["items"]
+                and row["name"] not in source_names
             ),
             None,
         )
@@ -129,10 +139,14 @@ def import_lists(api: Api, source: list[LocalList]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Import local packing checklists into a deployed account")
+    parser = argparse.ArgumentParser(
+        description="Import local packing checklists into a deployed account"
+    )
     parser.add_argument("--api", required=True, help="Deployed API base URL, without /app")
     parser.add_argument("--username", required=True, help="The deployed account username")
-    parser.add_argument("--database", type=Path, default=Path("life.db"), help="Local SQLite database path")
+    parser.add_argument(
+        "--database", type=Path, default=Path("life.db"), help="Local SQLite database path"
+    )
     args = parser.parse_args()
 
     try:

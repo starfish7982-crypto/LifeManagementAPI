@@ -27,9 +27,9 @@ from app.schemas import (
     LodgingOut,
     PackingItemIn,
     PackingItemOut,
-    PackingOrderIn,
     PackingListIn,
     PackingListOut,
+    PackingOrderIn,
     TravelBenefitIn,
     TravelBenefitOut,
     TravelExpenseIn,
@@ -323,7 +323,9 @@ def create_packing_list(
     user: User = Depends(current_user),
 ) -> PackingList:
     trip = _trip_or_create(db, user)
-    highest = db.scalar(select(func.max(PackingList.position)).where(PackingList.trip_id == trip.id))
+    highest = db.scalar(
+        select(func.max(PackingList.position)).where(PackingList.trip_id == trip.id)
+    )
     packing_list = PackingList(
         trip_id=trip.id, name=payload.name, position=0 if highest is None else highest + 1
     )
@@ -402,7 +404,11 @@ def add_packing_item(
     user: User = Depends(current_user),
 ) -> PackingItem:
     trip = _trip_or_create(db, user)
-    packing_list = _packing_list_or_404(db, packing_list_id, user) if packing_list_id else _default_packing_list(db, trip)
+    packing_list = (
+        _packing_list_or_404(db, packing_list_id, user)
+        if packing_list_id
+        else _default_packing_list(db, trip)
+    )
     if packing_list.trip_id != trip.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Packing checklist not found")
     highest = db.scalar(

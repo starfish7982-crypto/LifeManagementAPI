@@ -185,13 +185,16 @@ def test_each_traveller_can_have_a_separate_packing_checklist(client, other_clie
     lists = {packing_list["name"]: packing_list["items"] for packing_list in trip["packing_lists"]}
     assert [item["text"] for item in lists["Sally"]] == ["護照"]
     assert [item["text"] for item in lists["Eason"]] == ["相機"]
-    assert other_client.put(f"/travel/packing-lists/{sally['id']}", json={"name": "Mine"}).status_code == 404
+    denied = other_client.put(f"/travel/packing-lists/{sally['id']}", json={"name": "Mine"})
+    assert denied.status_code == 404
 
 
 def test_packing_items_can_be_reordered_only_within_their_own_checklist(client):
     packing_list = client.post("/travel/packing-lists", json={"name": "Sally"}).json()
     ids = [
-        client.post(f"/travel/packing?packing_list_id={packing_list['id']}", json={"text": text}).json()["id"]
+        client.post(
+            f"/travel/packing?packing_list_id={packing_list['id']}", json={"text": text}
+        ).json()["id"]
         for text in ["護照", "外套", "相機"]
     ]
     response = client.put(

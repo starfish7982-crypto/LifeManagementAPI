@@ -48,14 +48,19 @@ export function Travel() {
   const expenses = data?.expenses ?? [];
   const expenseTotal = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
 
+  // The id rather than the array: `packingLists` falls back to a fresh `[]` on every
+  // render while the trip is loading, so depending on it would re-run the effect for
+  // nothing. The id is a primitive, which is also what the exhaustive-deps rule wants.
+  const firstPackingListId = packingLists[0]?.id ?? null;
+
   useEffect(() => {
     // Keep a newly created checklist selected while the refetch is in flight. Resetting
     // an id that is not in the old response would otherwise bounce the view back to
     // the first person's list before the new response arrives.
-    if (activePackingListId === null && packingLists[0]) {
-      setActivePackingListId(packingLists[0].id);
+    if (activePackingListId === null && firstPackingListId !== null) {
+      setActivePackingListId(firstPackingListId);
     }
-  }, [activePackingListId, data?.packing_lists]);
+  }, [activePackingListId, firstPackingListId]);
 
   const saveTrip = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
